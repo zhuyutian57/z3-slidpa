@@ -30,6 +30,9 @@ Revision History:
 #include "ast/fpa_decl_plugin.h"
 #include "ast/special_relations_decl_plugin.h"
 
+// SLIDPA
+#include "ast/slidpa_decl_plugin.h"
+
 void reg_decl_plugins(ast_manager & m) {
     if (!m.get_plugin(m.mk_family_id(symbol("arith")))) {
         m.register_plugin(symbol("arith"), alloc(arith_decl_plugin));
@@ -63,5 +66,9 @@ void reg_decl_plugins(ast_manager & m) {
     }
     if (!m.get_plugin(m.mk_family_id(symbol("specrels")))) {
         m.register_plugin(symbol("specrels"), alloc(special_relations_decl_plugin));
+    }
+    // SLIDPA
+    if (!m.get_plugin(m.mk_family_id(symbol("slidpa")))) {
+        m.register_plugin(symbol("slidpa"), alloc(slidpa_decl_plugin));
     }
 }

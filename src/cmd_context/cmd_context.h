@@ -343,6 +343,9 @@ protected:
     bool logic_has_fpa() const;
     bool logic_has_recfun() const;
 
+    // SLIDPA
+    bool logic_has_slidpa() const;
+
     void print_unsupported_msg() { regular_stream() << "unsupported" << std::endl; }
     void print_unsupported_info(symbol const& s, int line, int pos) { if (s != symbol::null) diagnostic_stream() << "; " << s << " line: " << line << " position: " << pos << std::endl;}
 

@@ -2111,6 +2111,8 @@ bool ast_manager::check_sorts(ast const * n) const {
 }
 
 bool ast_manager::compatible_sorts(sort * s1, sort * s2) const {
+    SLIDPA_MSG("???" << s1->get_name() << s1->get_decl_kind());
+    SLIDPA_MSG(s1->get_name() << s1->get_decl_kind());
     if (s1 == s2)
         return true;
     if (m_int_real_coercions)

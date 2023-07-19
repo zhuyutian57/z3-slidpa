@@ -38,6 +38,15 @@ void set_default_debug_action(debug_action a);
 #include "util/error_codes.h"
 #include "util/warning.h"
 
+#define SLIDPA_DEBUG 1
+
+#ifdef SLIDPA_DEBUG
+#define SLIDPA_MSG(msg) \
+    std::cout << "slidpa debug info : " << msg << std::endl;
+#else
+#define SLIDPA_MSG(msg) ((void) 0)
+#endif
+
 #ifdef Z3DEBUG
 #define DEBUG_CODE(CODE) { CODE } ((void) 0)
 #else
