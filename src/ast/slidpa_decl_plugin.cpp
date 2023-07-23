@@ -111,28 +111,42 @@ func_decl* slidpa_decl_plugin::mk_separating_conjunction(unsigned arity, sort * 
     return res_decl;
 }
 
-func_decl* slidpa_decl_plugin::mk_func(char const* s, unsigned arity, sort* const * domain) {
-    SLIDPA_MSG("make function " << s);
+func_decl* slidpa_decl_plugin::mk_func(decl_kind k, unsigned arity, sort* const * domain) {
+    SLIDPA_MSG("make function ");
     if (arity != 2) {
         m_manager->raise_exception("that is a binary function");
         return nullptr;
     }
     this->check_sorts(domain, true);
+    symbol s(k == OP_SL_ADD ? "+" : "-");
     sort* range;
     if (domain[0]->get_name() == "Loc" || domain[1]->get_name() == "Loc")
         range = m_loc_decl;
     else range = m_data_decl;
-    return m_manager->mk_func_decl(symbol(s), domain[0], domain[1], range);
+    return m_manager->mk_func_decl(s, domain[0], domain[1], range,
+        func_decl_info(m_family_id, k));
 }
 
-func_decl* slidpa_decl_plugin::mk_pred(char const* s, unsigned arity, sort* const * domain) {
-    SLIDPA_MSG("make predicate " << s);
+func_decl* slidpa_decl_plugin::mk_pred(decl_kind k, unsigned arity, sort* const * domain) {
+    SLIDPA_MSG("make predicate ");
     if (arity != 2) {
         m_manager->raise_exception("that is a binary predicate");
         return nullptr;
     }
     this->check_sorts(domain, false);
-    return m_manager->mk_func_decl(symbol(s), domain[0], domain[1], m_manager->mk_bool_sort());
+    symbol s;
+    switch (k)
+    {
+    case OP_SL_LE: s = "<="; break;
+    case OP_SL_LT: s = "<"; break;
+    case OP_SL_GE: s = ">="; break;
+    case OP_SL_GT: s = ">"; break;
+    default:
+        m_manager->raise_exception(" wrong predicate symbol");
+        break;
+    }
+    return m_manager->mk_func_decl(s, domain[0], domain[1], m_manager->mk_bool_sort(),
+        func_decl_info(m_family_id, k));
 }
 
 func_decl* slidpa_decl_plugin::mk_const_emp(unsigned arity, sort * const * domain) {
@@ -149,12 +163,12 @@ func_decl* slidpa_decl_plugin::mk_func_decl(decl_kind k, unsigned num_parameters
     switch (k) {
         case OP_POINTS_TO: return mk_points_to(arity, domain);
         case OP_SEPARATING_CONJUNCTION: return mk_separating_conjunction(arity, domain);
-        case OP_SL_ADD: return mk_func("+", arity, domain);
-        case OP_SL_SUB: return mk_func("-", arity, domain);
-        case OP_SL_GE: return mk_pred(">=", arity, domain);
-        case OP_SL_GT: return mk_pred(">", arity, domain);
-        case OP_SL_LE: return mk_pred("<=", arity, domain);
-        case OP_SL_LT: return mk_pred("<", arity, domain);
+        case OP_SL_ADD: return mk_func(k, arity, domain);
+        case OP_SL_SUB: return mk_func(k, arity, domain);
+        case OP_SL_GE: return mk_pred(k, arity, domain);
+        case OP_SL_GT: return mk_pred(k, arity, domain);
+        case OP_SL_LE: return mk_pred(k, arity, domain);
+        case OP_SL_LT: return mk_pred(k, arity, domain);
         case OP_EMP: return mk_const_emp(arity, domain);
         default:
             m_manager->raise_exception("wrong operator");

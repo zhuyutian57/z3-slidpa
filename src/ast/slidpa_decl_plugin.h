@@ -60,8 +60,8 @@ public:
     func_decl* mk_separating_conjunction(unsigned arity, sort * const * domain);
     func_decl* mk_const_emp(unsigned arity, sort * const * domain);
 
-    func_decl* mk_func(char const* s, unsigned arity, sort* const * domain);
-    func_decl* mk_pred(char const* s, unsigned arity, sort* const * domain);
+    func_decl* mk_func(decl_kind k, unsigned arity, sort* const * domain);
+    func_decl* mk_pred(decl_kind k, unsigned arity, sort* const * domain);
     
 
     func_decl* mk_func_decl(decl_kind k, unsigned num_parameters, parameter const * parameters,

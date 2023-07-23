@@ -1,5 +1,7 @@
 #pragma once
 
+
+#include "ast/slidpa_decl_plugin.h"
 #include "smt/smt_theory.h"
 
 namespace smt {
