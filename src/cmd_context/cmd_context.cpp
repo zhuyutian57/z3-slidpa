@@ -789,7 +789,7 @@ void cmd_context::init_manager_core(bool new_manager) {
         load_plugin(symbol("pb"),       logic_has_pb(), fids);
 
         // SLIDPA
-        load_plugin(symbol("slidap"),   logic_has_slidpa(), fids);
+        load_plugin(symbol("slidpa"),   logic_has_slidpa(), fids);
 
         for (family_id fid : fids) {
             decl_plugin * p = m_manager->get_plugin(fid);

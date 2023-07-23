@@ -108,6 +108,9 @@ namespace smt {
         void setup_fpa();
         void setup_str();
 
+        // SLIDPA
+        void setup_SLIDPA();
+
     public:
         setup(context & c, smt_params & params);
         void mark_already_configured() { m_already_configured = true; }

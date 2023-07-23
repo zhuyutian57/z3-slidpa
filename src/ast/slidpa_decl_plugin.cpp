@@ -3,121 +3,180 @@
 #include "slidpa_decl_plugin.h"
 
 slidpa_decl_plugin::slidpa_decl_plugin()
-  : m_var_decl(nullptr),
-    m_ptl_sym("ptl"),
-    m_ptd_sym("ptd"),
-    m_sep_con_sym("sepc"),
-    m_emp_sym("emp"),
-    m_emp_decl(nullptr) {}
+    : m_pt_sym("pt"),
+      m_sep_con_sym("sepc"),
+      m_emp_sym("emp"),
+      m_loc_decl(nullptr),
+      m_data_decl(nullptr),
+      
+    //   m_l_add_decl(nullptr),
+    //   m_l_sub_decl(nullptr),
+    //   m_d_add_decl(nullptr),
+    //   m_d_sub_decl(nullptr),
+    //   m_l_le_decl(nullptr),
+    //   m_l_ge_decl(nullptr),
+    //   m_l_lt_decl(nullptr),
+    //   m_l_gt_decl(nullptr),
+    //   m_d_le_decl(nullptr),
+    //   m_d_ge_decl(nullptr),
+    //   m_d_lt_decl(nullptr),
+    //   m_d_gt_decl(nullptr),
+      m_emp(nullptr) { }
 
 decl_plugin* slidpa_decl_plugin::mk_fresh() {
-  return alloc(slidpa_decl_plugin);
+    return alloc(slidpa_decl_plugin);
 }
 
 sort* slidpa_decl_plugin::mk_sort(decl_kind k, unsigned num_parameters, parameter const * parameters) {
-  SLIDPA_MSG("slidpa make sort");
-  switch (k)
-  {
-  case LOC_SORT:
-    return m_var_decl;
-  case DATA_SORT:
-    return m_var_decl;
-  default:
-    m_manager->raise_exception("no such sort in SLIDPA!");
-    return nullptr;
-  }
+    SLIDPA_MSG("slidpa make sort -- " << (k == LOC_SORT ? "Loc" : "Data"));
+    switch (k)
+    {
+        case LOC_SORT:
+          return m_loc_decl;
+        case DATA_SORT:
+          return m_data_decl;
+        default:
+          m_manager->raise_exception("no such sort in SLIDPA!");
+          return nullptr;
+    }
 }
 
 void slidpa_decl_plugin::set_manager(ast_manager * m, family_id id) {
-  decl_plugin::set_manager(m, id);
-  SLIDPA_MSG("initial manager for slidpa");
+    decl_plugin::set_manager(m, id);
+    SLIDPA_MSG("initial manager for slidpa");
 
-  sort_info info = sort_info(arith_family_id, arith_sort_kind::INT_SORT);
+    m_loc_decl = m->mk_sort(symbol("Loc"),
+        sort_info(id, LOC_SORT));
+    m->inc_ref(m_loc_decl);
 
-  m_var_decl = m->mk_sort(symbol("Int"), info);
-  m->inc_ref(m_var_decl);
+    m_data_decl = m->mk_sort(symbol("Data"),
+        sort_info(id, DATA_SORT));
+    m->inc_ref(m_data_decl);
 
-  m_heap_decl = m->mk_bool_sort();
+    m_heap_decl = m->mk_bool_sort();
+
+    func_decl * emp_decl =
+        m->mk_const_decl(symbol("emp"), m_heap_decl, func_decl_info(id, OP_EMP));
+    m_emp = m->mk_const(emp_decl);
+    m->inc_ref(m_emp);
 }
 
 void slidpa_decl_plugin::get_op_names(svector<builtin_name> & op_names, symbol const & logic) {
-  SASSERT(logic == "QF_SLIDPA");
-  op_names.push_back(builtin_name("sepc", OP_SEPARATING_CONJUNCTION));
-  op_names.push_back(builtin_name("ptl", OP_POINTS_TO_LOC));
-  op_names.push_back(builtin_name("ptd", OP_POINTS_TO_DATA));
-  op_names.push_back(builtin_name("emp", OP_EMP));
+    if (logic != "SLIDPA") m_manager->raise_exception(" wrong logic ");
+    op_names.push_back(builtin_name("sepc", OP_SEPARATING_CONJUNCTION));
+    op_names.push_back(builtin_name("pt", OP_POINTS_TO));
+    op_names.push_back(builtin_name("emp", OP_EMP));
+    op_names.push_back(builtin_name("+",  OP_SL_ADD));
+    op_names.push_back(builtin_name("-",  OP_SL_SUB));
+    op_names.push_back(builtin_name("<=",  OP_SL_LE));
+    op_names.push_back(builtin_name("<",  OP_SL_LT));
+    op_names.push_back(builtin_name(">=",  OP_SL_GE));
+    op_names.push_back(builtin_name(">",  OP_SL_GT));
 }
 
 void slidpa_decl_plugin::get_sort_names(svector<builtin_name> & sort_names, symbol const & logic) {
-  SASSERT(logic == "QF_SLIDPA");
-  sort_names.push_back(builtin_name("Loc", arith_sort_kind::INT_SORT));
-  sort_names.push_back(builtin_name("Data", arith_sort_kind::INT_SORT));
+    if (logic != "SLIDPA") m_manager->raise_exception(" wrong logic ");
+    sort_names.push_back(builtin_name("Loc", LOC_SORT));
+    sort_names.push_back(builtin_name("Data", DATA_SORT));
 }
 
 func_decl* slidpa_decl_plugin::mk_points_to(unsigned arity, sort * const * domain) {
-  SLIDPA_MSG("make points-to");
-  if(arity != 2) {
-    m_manager->raise_exception("points-to must contain two operands");
-    return nullptr;
-  }
-  sort* loc_sort = domain[0];
-  sort* target_sort = domain[1];
-  symbol m_pt_sym;
-  decl_kind target_sort_kind = target_sort->get_decl_kind();
-  if(target_sort_kind == slidpa_sort_kind::LOC_SORT)
-    m_pt_sym = m_ptl_sym;
-  else
-    m_pt_sym = m_ptd_sym;
-  func_decl* res_decl =
-    m_manager->mk_func_decl(m_pt_sym, arity, domain, m_heap_decl,
-      func_decl_info(m_family_id, target_sort_kind));
-  SLIDPA_MSG("points to res : " << res_decl->get_name());
-  return res_decl;
+    SLIDPA_MSG("make points-to");
+    if (arity != 2) {
+        m_manager->raise_exception("points-to must contain two operands");
+        return nullptr;
+    }
+    sort* loc_sort = domain[0];
+    sort* target_sort = domain[1];
+    func_decl* res_decl =
+        m_manager->mk_func_decl(m_pt_sym, arity, domain, m_heap_decl,
+            func_decl_info(m_family_id, OP_POINTS_TO));
+    return res_decl;
 }
 
 func_decl* slidpa_decl_plugin::mk_separating_conjunction(unsigned arity, sort * const * domain) {
-  SLIDPA_MSG("make separating conjunction");
-  if(arity < 2) {
-    m_manager->raise_exception("separating conjunction must contain no less than two operands");
-    return nullptr;
-  }
-  for(int i = 0; i < arity; i++)
-    SASSERT(domain[i]->get_decl_kind() == m_heap_decl);
-  func_decl* res_decl =
-    m_manager->mk_func_decl(m_sep_con_sym, arity, domain, m_heap_decl,
-      func_decl_info(m_family_id, OP_SEPARATING_CONJUNCTION));
-  SLIDPA_MSG(res_decl->get_name() << " " << res_decl->get_range()->get_name());
-  return res_decl;
+    SLIDPA_MSG("make separating conjunction");
+    if (arity < 2) {
+        m_manager->raise_exception("separating conjunction must contain no less than two operands");
+        return nullptr;
+    }
+    for (int i = 0; i < arity; i++)
+        if (domain[i] != m_heap_decl) {
+            m_manager->raise_exception("every atom must be a (sub-)heap");
+            return nullptr;
+        }
+    func_decl* res_decl =
+        m_manager->mk_func_decl(m_sep_con_sym, arity, domain, m_heap_decl,
+            func_decl_info(m_family_id, OP_SEPARATING_CONJUNCTION));
+    return res_decl;
+}
+
+func_decl* slidpa_decl_plugin::mk_func(char const* s, unsigned arity, sort* const * domain) {
+    SLIDPA_MSG("make function " << s);
+    if (arity != 2) {
+        m_manager->raise_exception("that is a binary function");
+        return nullptr;
+    }
+    this->check_sorts(domain, true);
+    sort* range;
+    if (domain[0]->get_name() == "Loc" || domain[1]->get_name() == "Loc")
+        range = m_loc_decl;
+    else range = m_data_decl;
+    return m_manager->mk_func_decl(symbol(s), domain[0], domain[1], range);
+}
+
+func_decl* slidpa_decl_plugin::mk_pred(char const* s, unsigned arity, sort* const * domain) {
+    SLIDPA_MSG("make predicate " << s);
+    if (arity != 2) {
+        m_manager->raise_exception("that is a binary predicate");
+        return nullptr;
+    }
+    this->check_sorts(domain, false);
+    return m_manager->mk_func_decl(symbol(s), domain[0], domain[1], m_manager->mk_bool_sort());
 }
 
 func_decl* slidpa_decl_plugin::mk_const_emp(unsigned arity, sort * const * domain) {
-  SLIDPA_MSG("make const emp");
-  if(arity != 0) {
-    m_manager->raise_exception("emp is a unary operator");
-    return nullptr;
-  }
-  if(m_emp_decl != nullptr)
-    return m_emp_decl->get_decl();
-  func_decl* res_decl =
-    m_manager->mk_const_decl(m_emp_sym, m_manager->mk_bool_sort(),
-      func_decl_info(m_family_id, OP_EMP));
-  expr* const* res_expr = nullptr;
-  m_emp_decl = m_manager->mk_app(res_decl, res_expr);
-  return res_decl;
+    SLIDPA_MSG("make const emp");
+    if (arity != 0) {
+        m_manager->raise_exception("emp is a unary operator");
+        return nullptr;
+    }
+    return m_emp->get_decl();
 }
 
 func_decl* slidpa_decl_plugin::mk_func_decl(decl_kind k, unsigned num_parameters, parameter const * parameters,
                                      unsigned arity, sort * const * domain, sort * range) {
-  switch (k) {
-    case OP_POINTS_TO_LOC:
-      return mk_points_to(arity, domain);
-    case OP_POINTS_TO_DATA:
-      return mk_points_to(arity, domain);
-    case OP_SEPARATING_CONJUNCTION:
-      return mk_separating_conjunction(arity, domain);
-    case OP_EMP:
-      return mk_const_emp(arity, domain);
-    default:
-      return nullptr;
-  }
+    switch (k) {
+        case OP_POINTS_TO: return mk_points_to(arity, domain);
+        case OP_SEPARATING_CONJUNCTION: return mk_separating_conjunction(arity, domain);
+        case OP_SL_ADD: return mk_func("+", arity, domain);
+        case OP_SL_SUB: return mk_func("-", arity, domain);
+        case OP_SL_GE: return mk_pred(">=", arity, domain);
+        case OP_SL_GT: return mk_pred(">", arity, domain);
+        case OP_SL_LE: return mk_pred("<=", arity, domain);
+        case OP_SL_LT: return mk_pred("<", arity, domain);
+        case OP_EMP: return mk_const_emp(arity, domain);
+        default:
+            m_manager->raise_exception("wrong operator");
+            return nullptr;
+    }
+}
+
+void slidpa_decl_plugin::check_sorts(sort* const * domain, bool is_func) {
+    bool res = true;
+    for (int i = 0; i < 2; i++) {
+        symbol name = domain[i]->get_name();
+        if (name != "Loc" && name != "Data" && name != "Int")
+            res = false;
+    }
+    if (!res) {
+        m_manager->raise_exception("Wrong arguments");
+        return;
+    }
+    if (is_func) return;
+    if (domain[0]->get_name() == "Loc" || domain[1]->get_name() == "Loc")
+        res = domain[0]->get_name() != "Data" && domain[1]->get_name() != "Data";
+    else if (domain[0]->get_name() == "Data" || domain[1]->get_name() == "Data")
+        res = domain[0]->get_name() != "Loc" && domain[1]->get_name() != "Loc";
+    if (!res) m_manager->raise_exception("Wrong arguments");
 }

@@ -73,6 +73,7 @@ z3_add_component(smt
     theory_user_propagator.cpp
     theory_utvpi.cpp
     theory_wmaxsat.cpp
+    theory_slidpa.cpp
     uses_theory.cpp
     watch_list.cpp
   COMPONENT_DEPENDENCIES

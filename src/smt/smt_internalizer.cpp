@@ -226,6 +226,7 @@ namespace smt {
        \remark pr is 0 if proofs are disabled.
     */
     void context::internalize_assertion(expr * n, proof * pr, unsigned generation) {
+        SLIDPA_MSG("internalize assertion");
         TRACE("internalize_assertion", tout << mk_pp(n, m) << "\n";); 
         TRACE("internalize_assertion_ll", tout << mk_ll_pp(n, m) << "\n";); 
         TRACE("generation", tout << "generation: " << m_generation << "\n";);
@@ -295,6 +296,7 @@ namespace smt {
     }
 
     void context::assert_default(expr * n, proof * pr) {
+        SLIDPA_MSG("assert default");
         internalize(n, true);
         literal l = get_literal(n);
         if (l == false_literal) {
@@ -365,6 +367,7 @@ namespace smt {
     }
 
     void context::internalize_rec(expr * n, bool gate_ctx) {
+        SLIDPA_MSG("internalize rec");
         TRACE("internalize", tout << "internalizing:\n" << mk_pp(n, m) << "\n";);
         TRACE("internalize_bug", tout << "internalizing:\n" << mk_bounded_pp(n, m) << "\n";);
         if (is_var(n)) {
@@ -379,6 +382,7 @@ namespace smt {
         }
         else {
             SASSERT(is_app(n));
+            SLIDPA_MSG("internalize rec + 1");
             internalize_term(to_app(n));
         }
     }
@@ -387,6 +391,7 @@ namespace smt {
        \brief Internalize the given formula into the logical context.
     */
     void context::internalize_formula(expr * n, bool gate_ctx) {
+        SLIDPA_MSG("internalize formula");
         TRACE("internalize_bug", tout << "internalize formula: #" << n->get_id() << ", gate_ctx: " << gate_ctx << "\n" << mk_pp(n, m) << "\n";);
         SASSERT(m.is_bool(n));
         if (m.is_true(n) || m.is_false(n))
@@ -398,7 +403,7 @@ namespace smt {
             internalize_rec(to_app(n)->get_arg(0), true);
             return;
         }
-
+        SLIDPA_MSG("internalize formula + 1");
         if (b_internalized(n)) {
             // n was already internalized as a boolean.
             bool_var v = get_bool_var(n);
@@ -427,7 +432,7 @@ namespace smt {
             }
             return;
         }
-
+        SLIDPA_MSG("internalize formula + 2");
         if (m.is_eq(n) && !m.is_iff(n))
             internalize_eq(to_app(n), gate_ctx);
         else if (m.is_distinct(n))
@@ -806,6 +811,7 @@ namespace smt {
        \brief Internalize the given term into the logical context.
     */
     void context::internalize_term(app * n) {
+        SLIDPA_MSG("internalize term" << " --> " << n->get_name() << " " << n->get_family_id());
         if (e_internalized(n)) {
             theory * th = m_theories.get_plugin(n->get_family_id());
             if (th != nullptr) {
@@ -819,6 +825,7 @@ namespace smt {
                 //   Later, the core tries to internalize (f (* 2 x)).
                 //   Now, (* 2 x) is not internal to arithmetic anymore,
                 //   and a theory variable must be created for it.
+                SLIDPA_MSG("before theory internalize term");
                 enode * e = get_enode(n);
                 if (!th->is_attached_to_var(e))
                     th->internalize_term(n);

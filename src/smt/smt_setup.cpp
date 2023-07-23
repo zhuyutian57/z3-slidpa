@@ -39,6 +39,9 @@ Revision History:
 #include "smt/theory_fpa.h"
 #include "smt/theory_str.h"
 
+// SLIDPA
+#include "smt/theory_slidpa.h"
+
 namespace smt {
 
     setup::setup(context & c, smt_params & params):
@@ -131,6 +134,9 @@ namespace smt {
             setup_QF_S();
         else if (m_logic == "QF_DT")
             setup_QF_DT();
+        // SLIDPA
+        else if (m_logic == "SLIDPA")
+            setup_SLIDPA();
         else
             setup_unknown();
     }
@@ -201,6 +207,9 @@ namespace smt {
                 setup_QF_DT();
             else if (m_logic == "LRA")
                 setup_LRA();
+            // SLIDPA
+            else if (m_logic == "SLIDPA")
+                setup_SLIDPA();
             else 
                 setup_unknown(st);
         }
@@ -908,6 +917,10 @@ namespace smt {
         }
 
         setup_unknown();
+    }
+
+    void setup::setup_SLIDPA() {
+        m_context.register_plugin(alloc(smt::theory_slidpa, m_context));
     }
 
 };

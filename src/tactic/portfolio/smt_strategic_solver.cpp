@@ -102,6 +102,9 @@ tactic * mk_tactic_for_logic(ast_manager & m, params_ref const & p, symbol const
         return mk_horn_tactic(m, p);
     else if ((logic == "QF_FD" || logic == "SAT") && !m.proofs_enabled())
         return mk_fd_tactic(m, p);
+    // SLIDPA
+    // else if (logic == "SLIDPA")
+    //     return mk_slidpa_tatic(m, p);
     else 
         return mk_default_tactic(m, p);
 }

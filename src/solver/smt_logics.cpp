@@ -91,8 +91,7 @@ bool smt_logics::logic_has_arith(symbol const & s) {
         logic_is_all(s) ||
         s == "QF_FD" ||
         s == "HORN" ||
-        s == "QF_FPLRA" ||
-        s == "QF_SLIDPA";
+        s == "QF_FPLRA";
 }
 
 bool smt_logics::logic_has_bv(symbol const & s) {
@@ -167,5 +166,5 @@ bool smt_logics::logic_has_datatype(symbol const& s) {
 }
 
 bool smt_logics::logic_has_slidpa(symbol const& s) {
-    return s == "QF_SLIDPA";
+    return s == "SLIDPA";
 }
