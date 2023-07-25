@@ -102,11 +102,10 @@ bool theory_slidpa::internalize_atom(app * atom, bool gate_ctx) {
         !is_app_of(atom, m_id, OP_SEPARATING_CONJUNCTION))
         return false;
     if (ctx.e_internalized(atom)) return false;
-    for (expr* arg : *atom) {
+    for (expr* arg : *atom)
         ctx.internalize(arg, false);
-    }
     enode* e = ctx.mk_enode(atom, false, false, true);
-    if (m.is_bool(atom)) {
+    if (!ctx.b_internalized(atom)) {
         bool_var bv = ctx.mk_bool_var(atom);
         ctx.set_var_theory(bv, get_id());
         ctx.set_enode_flag(bv, true);
@@ -116,17 +115,15 @@ bool theory_slidpa::internalize_atom(app * atom, bool gate_ctx) {
 
 bool theory_slidpa::internalize_term(app * term) {
     SLIDPA_MSG("theroy slidpa internalize term " << mk_ismt2_pp(term, m));
-    for (expr* arg : *term) {
+    for (expr* arg : *term)
         ctx.internalize(arg, false);
-    }
-    
     if (ctx.e_internalized(term)) return false;
     enode* e = ctx.mk_enode(term, false, false, true);
-    // if (m.is_bool(term)) {
-    //     bool_var bv = ctx.mk_bool_var(term);
-    //     ctx.set_var_theory(bv, get_id());
-    //     ctx.set_enode_flag(bv, true);
-    // }
+    if (m.is_bool(term) && ctx.b_internalized(term)) {
+        bool_var bv = ctx.mk_bool_var(term);
+        ctx.set_var_theory(bv, get_id());
+        ctx.set_enode_flag(bv, true);
+    }
     return true;
 }
 

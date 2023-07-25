@@ -921,6 +921,7 @@ namespace smt {
 
     void setup::setup_SLIDPA() {
         m_context.register_plugin(alloc(smt::theory_slidpa, m_context));
+        setup_QF_LIA();
     }
 
 };
