@@ -270,7 +270,7 @@ bool theory_user_propagator::get_case_split(bool_var& var, bool& is_pos){
     
     if (var == null_bool_var)
         return false;
-    
+
     is_pos = ctx.guess(var, m_next_split_phase);
     m_next_split_expr = nullptr;
     return true;

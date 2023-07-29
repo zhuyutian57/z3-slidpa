@@ -770,7 +770,7 @@ void cmd_context::init_manager_core(bool new_manager) {
         register_plugin(symbol("specrels"), alloc(special_relations_decl_plugin), !has_logic());
 
         // SLIDPA
-        register_plugin(symbol("slidpa"), alloc(slidpa_decl_plugin), logic_has_slidpa());
+        register_plugin(symbol("slidpa"), alloc(slidpa::slidpa_decl_plugin), logic_has_slidpa());
     }
     else {
         // the manager was created by an external module

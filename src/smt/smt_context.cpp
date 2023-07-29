@@ -299,6 +299,7 @@ namespace smt {
     }
 
     bool context::bcp() {
+        SLIDPA_MSG("bcp");
         SASSERT(!inconsistent());
         while (m_qhead < m_assigned_literals.size()) {
             if (get_cancel_flag()) {
@@ -1696,6 +1697,7 @@ namespace smt {
        congruences cannot be retracted to a consistent state.
      */
     bool context::propagate() {
+        SLIDPA_MSG("bounded search propagate");
         TRACE("propagate", tout << "propagating... " << m_qhead << ":" << m_assigned_literals.size() << "\n";);
         while (true) {
             if (inconsistent())
@@ -1775,6 +1777,7 @@ namespace smt {
        \brief Returns a truth value for the given variable
     */
     bool context::guess(bool_var var, lbool phase) {
+        SLIDPA_MSG("guess value of " << var);
         if (is_quantifier(m_bool_var2expr[var])) {
             // Overriding any decision on how to assign the quantifier.
             // assigning a quantifier to false is equivalent to make it irrelevant.
@@ -1840,7 +1843,7 @@ namespace smt {
        more case splits to be performed.
     */
     bool context::decide() {
-
+        SLIDPA_MSG("decide");
         if (at_search_level() && !m_tmp_clauses.empty()) {
             switch (decide_clause()) {
             case l_true:  // already satisfied
@@ -1859,8 +1862,10 @@ namespace smt {
             lbool phase = l_undef;
             m_case_split_queue->next_case_split(var, phase);
             used_queue = true;
-            if (var == null_bool_var)
+            if (var == null_bool_var) {
+                SLIDPA_MSG("has split, var is null");
                 return false;
+            }
 
             TRACE_CODE({
                 static unsigned counter = 0;
@@ -1872,7 +1877,7 @@ namespace smt {
                           }
                           tout << "\n";);
                 }});
-        
+
             is_pos = guess(var, phase);
         }
 
@@ -1895,6 +1900,7 @@ namespace smt {
 
         if (!is_pos) l.neg();
         TRACE("decide", tout << "case split " << l << "\n" << "activity: " << get_activity(var) << "\n";);
+        SLIDPA_MSG("l neg");
         assign(l, b_justification::mk_axiom(), true);
         return true;
     }
@@ -3294,6 +3300,7 @@ namespace smt {
     }
 
     lbool context::decide_clause() {
+        SLIDPA_MSG("decide clause");
         if (m_tmp_clauses.empty()) return l_true;
         for (auto & tmp_clause : m_tmp_clauses) {
             literal_vector& lits = tmp_clause.second;
@@ -3550,11 +3557,11 @@ namespace smt {
        and before internalizing any formulas.
     */
     lbool context::setup_and_check(bool reset_cancel) {
+        TRACE("my", tout << "begin setup and check\n");
         if (!check_preamble(reset_cancel)) return l_undef;
         SASSERT(m_scope_lvl == 0);
         SASSERT(!m_setup.already_configured());
         setup_context(m_fparams.m_auto_config);
-
         if (m_fparams.m_threads > 1 && !m.has_trace_stream()) {
             parallel p(*this);
             expr_ref_vector asms(m);
@@ -3699,6 +3706,9 @@ namespace smt {
         m_case_split_queue             ->init_search_eh();
         m_next_progress_sample         = 0;
         TRACE("literal_occ", display_literal_num_occs(tout););
+        //SLIDPA - used to bypass the guessing for enode
+        if (m_fparams.m_search_strategy == SS_IGNORE)
+            m_case_split_queue->reset();
     }
 
     void context::end_search() {
@@ -3885,7 +3895,7 @@ namespace smt {
                 });
 
                 tick(counter);
-
+                TRACE("my", tout << "before resolve conflict\n");
                 if (!resolve_conflict())
                     return l_false;
 
@@ -3932,6 +3942,7 @@ namespace smt {
             if (!decide()) {
                 if (inconsistent()) 
                     return l_false;
+                SLIDPA_MSG("smt final check");
                 final_check_status fcs = final_check();
                 TRACE("final_check_result", tout << "fcs: " << fcs << " last_search_failure: " << m_last_search_failure << "\n";);
                 switch (fcs) {

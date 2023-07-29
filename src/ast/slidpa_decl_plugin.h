@@ -2,53 +2,54 @@
 
 #include "ast/ast.h"
 
+namespace slidpa {
+
 enum slidpa_sort_kind {
     LOC_SORT,
     DATA_SORT
 };
 
 enum slidpa_op_kind {
-    OP_POINTS_TO,
-    OP_SEPARATING_CONJUNCTION,
+    OP_PTO,
+    OP_SEP,
     OP_EMP,
+    OP_ENTAIL,
 
-    OP_SL_ADD,
-    OP_SL_SUB,
+    OP_ADD,
+    OP_SUB,
 
-    OP_SL_LE,
-    OP_SL_LT,
-    OP_SL_GE,
-    OP_SL_GT
+    OP_LE,
+    OP_LT,
+    OP_GE,
+    OP_GT
 };
 
 class slidpa_decl_plugin : public decl_plugin {
-    symbol m_pt_sym;
-    symbol m_sep_con_sym;
-    symbol m_emp_sym;
 
     sort* m_loc_decl;
     sort* m_data_decl;
     sort* m_heap_decl;
 
-    // func_decl* m_l_add_decl;
-    // func_decl* m_l_sub_decl;
-    // func_decl* m_d_add_decl;
-    // func_decl* m_d_sub_decl;
-
-    // func_decl* m_l_le_decl;
-    // func_decl* m_l_lt_decl;
-    // func_decl* m_l_ge_decl;
-    // func_decl* m_l_gt_decl;
-    // func_decl* m_d_le_decl;
-    // func_decl* m_d_lt_decl;
-    // func_decl* m_d_ge_decl;
-    // func_decl* m_d_gt_decl;
+    func_decl* m_entail_decl;
 
     app* m_emp;
 
 public:
 
     slidpa_decl_plugin();
+
+    bool is_loc(sort const * s);
+    bool is_data(sort const * s);
+    bool is_heap(expr const * e);
+    bool is_op_pto(expr const * e);
+    bool is_op_sep(expr const * e);
+    bool is_op_entail(expr const * e);
+    bool is_op_add(expr const * e);
+    bool is_op_sub(expr const * e);
+    bool is_op_le(expr const * e);
+    bool is_op_lt(expr const * e);
+    bool is_op_ge(expr const * e);
+    bool is_op_gt(expr const * e);
 
     decl_plugin* mk_fresh() override;
     sort * mk_sort(decl_kind k, unsigned num_parameters, parameter const * parameters) override;
@@ -69,5 +70,8 @@ public:
 
 private:
     void check_sorts(sort* const * domain, bool is_func);
+    void set_propertie(func_decl* fd);
 
 };
+
+}

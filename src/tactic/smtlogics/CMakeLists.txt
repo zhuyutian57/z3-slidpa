@@ -14,6 +14,7 @@ z3_add_component(smtlogic_tactics
     qfuf_tactic.cpp
     quant_tactics.cpp
     smt_tactic.cpp
+    slidpa_tactic.cpp
   COMPONENT_DEPENDENCIES
     ackermannization
     aig_tactic
@@ -41,4 +42,5 @@ z3_add_component(smtlogic_tactics
     qfuf_tactic.h
     qfufbv_tactic.h
     quant_tactics.h
+    slidpa_tactic.h
 )

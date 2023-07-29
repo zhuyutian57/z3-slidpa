@@ -73,6 +73,11 @@ enum case_split_strategy {
     CS_ACTIVITY_THEORY_AWARE_BRANCHING // activity-based case split, but theory solvers can manipulate activity
 };
 
+enum search_strategy {
+    SS_BUILDTIN,
+    SS_IGNORE
+};
+
 struct smt_params : public preprocessor_params,
                     public dyn_ack_params,
                     public qi_params,
@@ -225,6 +230,9 @@ struct smt_params : public preprocessor_params,
     bool                m_dump_goal_as_smt = false;
     bool                m_auto_config = true;
 
+    // SLIDPA
+    bool                m_eliminate_and = true;
+
     // -----------------------------------
     //
     // Spacer hacking
@@ -233,6 +241,13 @@ struct smt_params : public preprocessor_params,
     bool                m_dump_benchmarks;
     double              m_dump_min_time;
     bool                m_dump_recheck;
+
+    // -----------------------------------
+    // SLIDPA
+    // Search Strategy
+    //
+    // -----------------------------------
+    bool                m_search_strategy = SS_BUILDTIN;
 
     // -----------------------------------
     //
@@ -299,6 +314,9 @@ struct smt_params : public preprocessor_params,
     void setup_AUFLIRA(bool simple_array);
 
     void setup_LRA();
+
+    // SLIDPA
+    void setup_SLIDPA();
             
 };
 

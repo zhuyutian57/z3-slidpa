@@ -285,7 +285,7 @@ void asserted_formulas::reduce() {
     if (!invoke(m_propagate_values)) return;
     if (!invoke(m_find_macros)) return;
     if (!invoke(m_nnf_cnf)) return;
-    set_eliminate_and(true);
+    if (m_smt_params.m_eliminate_and) set_eliminate_and(true);
     if (!invoke(m_reduce_asserted_formulas)) return;
     if (!invoke(m_pull_nested_quantifiers)) return;
     if (!invoke(m_lift_ite)) return;

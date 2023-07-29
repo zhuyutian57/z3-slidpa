@@ -32,6 +32,7 @@ Notes:
 #include "tactic/smtlogics/qfufbv_tactic.h"
 #include "tactic/smtlogics/qfidl_tactic.h"
 #include "tactic/smtlogics/nra_tactic.h"
+#include "tactic/smtlogics/slidpa_tactic.h"
 #include "tactic/portfolio/default_tactic.h"
 #include "tactic/fd_solver/fd_solver.h"
 #include "tactic/fd_solver/smtfd_solver.h"
@@ -103,8 +104,8 @@ tactic * mk_tactic_for_logic(ast_manager & m, params_ref const & p, symbol const
     else if ((logic == "QF_FD" || logic == "SAT") && !m.proofs_enabled())
         return mk_fd_tactic(m, p);
     // SLIDPA
-    // else if (logic == "SLIDPA")
-    //     return mk_slidpa_tatic(m, p);
+    else if (logic == "SLIDPA")
+        return mk_slidpa_tactic(m, p);
     else 
         return mk_default_tactic(m, p);
 }

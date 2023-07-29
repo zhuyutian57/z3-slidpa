@@ -428,3 +428,10 @@ void smt_params::setup_LRA() {
     m_eliminate_term_ite  = true;
 }
 
+void smt_params::setup_SLIDPA() {
+    // m_phase_selection = PS_THEORY;
+    m_case_split_strategy = CS_ACTIVITY_THEORY_AWARE_BRANCHING;
+    m_eliminate_and = false;
+    m_search_strategy = SS_IGNORE;
+}
+

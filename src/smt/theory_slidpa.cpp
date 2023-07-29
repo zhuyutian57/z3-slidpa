@@ -8,6 +8,7 @@ namespace smt {
 
 namespace slidpa {
 
+
 inductive_def::inductive_def(ast_manager& ast_m)
     : m(ast_m),
       m_func_decl(nullptr),
@@ -51,10 +52,11 @@ void inductive_def::display(std::ostream& out) {
 
 }
 
-
 theory_slidpa::theory_slidpa(context& ctx)
     : theory(ctx, ctx.get_manager().get_family_id("slidpa")),
       m_rpl(ctx.get_manager()) {
+    m_decl_plug =
+        static_cast<::slidpa::slidpa_decl_plugin*>(m.get_plugin(m_id));
     m_i_defs.reset();
     init_inductive_predicates();
 }
@@ -68,9 +70,8 @@ void theory_slidpa::init_inductive_predicates() {
         return;
     }
     SLIDPA_MSG("Handle inductive definitions");
-    sort* loc_sort = m.mk_sort(symbol("Loc"),
-        sort_info(m.get_family_id("slidpa"),
-            slidpa_sort_kind::LOC_SORT));
+    sort* loc_sort =
+        m_decl_plug->mk_sort(::slidpa::LOC_SORT, 0, nullptr);
     expr* x = m.mk_const("x", loc_sort);
     expr* y = m.mk_const("y", loc_sort);
 
@@ -96,47 +97,68 @@ void theory_slidpa::init_inductive_predicates() {
         SLIDPA_MSG(*m_i_defs[recf]);
 }
 
+bool theory_slidpa::is_arith(expr const* e) {
+    return m_decl_plug->is_op_add(e) ||
+           m_decl_plug->is_op_sub(e) ||
+           m_decl_plug->is_op_le(e) ||
+           m_decl_plug->is_op_lt(e) ||
+           m_decl_plug->is_op_ge(e) ||
+           m_decl_plug->is_op_gt(e);
+}
+
+bool theory_slidpa::is_arith_assertion(expr const* e) {
+    return m_decl_plug->is_op_le(e) ||
+           m_decl_plug->is_op_lt(e) ||
+           m_decl_plug->is_op_ge(e) ||
+           m_decl_plug->is_op_gt(e);
+}
+
+bool theory_slidpa::is_heap(expr const* e) {
+    return m_decl_plug->is_heap(e);
+}
+
+bool theory_slidpa::is_disjoin(expr const* e) {
+    return m_decl_plug->is_op_sep(e);
+}
+
+bool theory_slidpa::is_atomic_heap(expr const* e) {
+    return is_heap(e) && !is_disjoin(e);
+}
+
 bool theory_slidpa::internalize_atom(app * atom, bool gate_ctx) {
     SLIDPA_MSG("theroy slidpa internalize atom " << mk_ismt2_pp(atom, m));
-    if (!is_app_of(atom, m_id, OP_POINTS_TO) &&
-        !is_app_of(atom, m_id, OP_SEPARATING_CONJUNCTION))
-        return false;
+    if (!is_heap(atom) && !is_arith_assertion(atom)) return false;
     if (ctx.e_internalized(atom)) return false;
-    for (expr* arg : *atom)
-        ctx.internalize(arg, false);
-    enode* e = ctx.mk_enode(atom, false, false, true);
+    mk_var(ctx.mk_enode(atom, true, false, true));
     if (!ctx.b_internalized(atom)) {
         bool_var bv = ctx.mk_bool_var(atom);
         ctx.set_var_theory(bv, get_id());
-        ctx.set_enode_flag(bv, true);
     }
     return true;
 }
 
 bool theory_slidpa::internalize_term(app * term) {
     SLIDPA_MSG("theroy slidpa internalize term " << mk_ismt2_pp(term, m));
-    for (expr* arg : *term)
-        ctx.internalize(arg, false);
+    if (!is_arith(term) || is_arith_assertion(term))
+        return false;
+    return internalize_term_core(term);
+}
+
+bool theory_slidpa::internalize_term_core(app* term) {
+    // for (expr* arg : *term)
+    //     ctx.internalize(arg, false);
     if (ctx.e_internalized(term)) return false;
-    enode* e = ctx.mk_enode(term, false, false, true);
-    if (m.is_bool(term) && ctx.b_internalized(term)) {
+    mk_var(ctx.mk_enode(term, true, false, true));
+    if (m.is_bool(term) && !ctx.b_internalized(term)) {
         bool_var bv = ctx.mk_bool_var(term);
         ctx.set_var_theory(bv, get_id());
-        ctx.set_enode_flag(bv, true);
     }
     return true;
 }
 
-void theory_slidpa::new_eq_eh(theory_var v1, theory_var v2) {
-    SLIDPA_MSG("theroy slidpa new_eq_eh");
-}
-
-void theory_slidpa::new_diseq_eh(theory_var v1, theory_var v2) {
-    SLIDPA_MSG("theroy slidpa new_diseq_eh");
-}
-
 void theory_slidpa::display(std::ostream & out) const {
     SLIDPA_MSG("theroy slidpa display");
+    out << "Theory slidpa\n";
 }
 
 theory * theory_slidpa::mk_fresh(context * new_ctx) {
@@ -145,21 +167,17 @@ theory * theory_slidpa::mk_fresh(context * new_ctx) {
 }
 
 final_check_status theory_slidpa::final_check_eh() {
-    return final_check() ? FC_DONE : FC_CONTINUE;
+    return final_check() ? FC_DONE : FC_GIVEUP;
 }
 
 bool theory_slidpa::final_check() {
     SLIDPA_MSG("final check");
 
-    expr_ref_vector assignments(m);
-    ctx.get_assignments(assignments);
-
-    for(auto e : assignments) {
-        SLIDPA_MSG(mk_ismt2_pp(e, m));
-    }
-
-    for(auto en : ctx.enodes()) {
-        SLIDPA_MSG(en->get_decl()->get_range()->get_name());
+    ptr_vector<expr> afs;
+    ctx.get_assertions(afs);
+    SLIDPA_MSG("assertions");
+    for (auto e : afs) {
+        SLIDPA_MSG(mk_pp(e, m));
     }
 
     return true;

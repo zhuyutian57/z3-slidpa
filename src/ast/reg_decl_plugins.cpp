@@ -69,6 +69,6 @@ void reg_decl_plugins(ast_manager & m) {
     }
     // SLIDPA
     if (!m.get_plugin(m.mk_family_id(symbol("slidpa")))) {
-        m.register_plugin(symbol("slidpa"), alloc(slidpa_decl_plugin));
+        m.register_plugin(symbol("slidpa"), alloc(slidpa::slidpa_decl_plugin));
     }
 }

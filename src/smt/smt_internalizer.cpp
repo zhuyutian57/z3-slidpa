@@ -226,15 +226,15 @@ namespace smt {
        \remark pr is 0 if proofs are disabled.
     */
     void context::internalize_assertion(expr * n, proof * pr, unsigned generation) {
-        SLIDPA_MSG("internalize assertion");
-        SLIDPA_MSG(mk_ismt2_pp(n, m));
         TRACE("internalize_assertion", tout << mk_pp(n, m) << "\n";); 
         TRACE("internalize_assertion_ll", tout << mk_ll_pp(n, m) << "\n";); 
         TRACE("generation", tout << "generation: " << m_generation << "\n";);
         TRACE("incompleteness_bug", tout << "[internalize-assertion]: #" << n->get_id() << "\n";);
         flet<unsigned> l(m_generation, generation);
         m_stats.m_max_generation = std::max(m_generation, m_stats.m_max_generation);
+        TRACE("my", tout << " before internalize deep \n" << mk_pp(n, m));
         internalize_deep(n);
+        TRACE("my", tout << " after internalize deep \n" << mk_pp(n, m));
         SASSERT(m.is_bool(n));
         if (is_gate(m, n)) {
             switch(to_app(n)->get_decl_kind()) {
@@ -292,12 +292,13 @@ namespace smt {
             mark_as_relevant(n);
         }
         else {
+        TRACE("my", tout << " befire assert default \n" << mk_pp(n, m));
             assert_default(n, pr);
         }
     }
 
     void context::assert_default(expr * n, proof * pr) {
-        SLIDPA_MSG("assert default");
+        TRACE("my", tout << "assert default : " << mk_pp(n, m));
         internalize(n, true);
         literal l = get_literal(n);
         if (l == false_literal) {
@@ -357,9 +358,7 @@ namespace smt {
     void context::internalize(expr * n, bool gate_ctx) {
         if (memory::above_high_watermark())
             throw cancel_exception();
-        // SLIDPA_MSG("internalize + 1");
         internalize_deep(n);
-        // SLIDPA_MSG("internalize + 2");
         internalize_rec(n, gate_ctx);
     }
 
@@ -370,7 +369,6 @@ namespace smt {
     }
 
     void context::internalize_rec(expr * n, bool gate_ctx) {
-        SLIDPA_MSG("internalize rec" << " " << mk_ismt2_pp(n, m));
         TRACE("internalize", tout << "internalizing:\n" << mk_pp(n, m) << "\n";);
         TRACE("internalize_bug", tout << "internalizing:\n" << mk_bounded_pp(n, m) << "\n";);
         if (is_var(n)) {
@@ -378,7 +376,6 @@ namespace smt {
         }
         if (m.is_bool(n)) {
             SASSERT(is_quantifier(n) || is_app(n));
-            // SLIDPA_MSG("internalize rec -> f")
             internalize_formula(n, gate_ctx);
         }
         else if (is_lambda(n)) {
@@ -386,17 +383,14 @@ namespace smt {
         }
         else {
             SASSERT(is_app(n));
-            // SLIDPA_MSG("internalize rec -> t");
             internalize_term(to_app(n));
         }
-        // SLIDPA_MSG("internalize rec done");
     }
 
     /**
        \brief Internalize the given formula into the logical context.
     */
     void context::internalize_formula(expr * n, bool gate_ctx) {
-        SLIDPA_MSG("internalize formula" << " " << mk_ismt2_pp(n, m));
         TRACE("internalize_bug", tout << "internalize formula: #" << n->get_id() << ", gate_ctx: " << gate_ctx << "\n" << mk_pp(n, m) << "\n";);
         SASSERT(m.is_bool(n));
         if (m.is_true(n) || m.is_false(n))
@@ -408,7 +402,6 @@ namespace smt {
             internalize_rec(to_app(n)->get_arg(0), true);
             return;
         }
-        // SLIDPA_MSG("internalize formula + 1");
         if (b_internalized(n)) {
             // n was already internalized as a boolean.
             bool_var v = get_bool_var(n);
@@ -436,8 +429,7 @@ namespace smt {
                 SASSERT(has_enode(v));
             }
             return;
-        }
-        // SLIDPA_MSG("internalize formula + 2");
+        };
         if (m.is_eq(n) && !m.is_iff(n))
             internalize_eq(to_app(n), gate_ctx);
         else if (m.is_distinct(n))
@@ -448,14 +440,12 @@ namespace smt {
             internalize_quantifier(to_quantifier(n), gate_ctx);
         else
             internalize_formula_core(to_app(n), gate_ctx);
-        // SLIDPA_MSG("internalize formula done")
     }
 
     /**
        \brief Internalize an equality.
     */
     void context::internalize_eq(app * n, bool gate_ctx) {
-        SLIDPA_MSG("internalize equal");
         SASSERT(!b_internalized(n));
         SASSERT(m.is_eq(n));
         internalize_formula_core(n, gate_ctx);
@@ -502,18 +492,15 @@ namespace smt {
         that can internalize n.
     */
     bool context::internalize_theory_atom(app * n, bool gate_ctx) {
-        SLIDPA_MSG("internalize theory atom " << mk_pp(n, m));
         SASSERT(!b_internalized(n));
         theory * th  = m_theories.get_plugin(n->get_family_id());
         TRACE("datatype_bug", tout << "internalizing theory atom:\n" << mk_pp(n, m) << "\n";);
         if (!th || !th->internalize_atom(n, gate_ctx))
             return false;
-        // SLIDPA_MSG("internalize theory atom + 1");
         TRACE("datatype_bug", tout << "internalization succeeded\n" << mk_pp(n, m) << "\n";);
         SASSERT(b_internalized(n));
         TRACE("internalize_theory_atom", tout << "internalizing theory atom: #" << n->get_id() << "\n";);
         bool_var v        = get_bool_var(n);
-        // SLIDPA_MSG("internalize theory atom + 2" << " enode : " << v);
         if (!gate_ctx) {
             // if the formula is not in the context of a gate, then it
             // must be associated with an enode.
@@ -647,7 +634,6 @@ namespace smt {
        \brief Internalize gates and (uninterpreted and equality) predicates.
     */
     void context::internalize_formula_core(app * n, bool gate_ctx) {
-        SLIDPA_MSG("internalize formula core");
         SASSERT(!b_internalized(n));
         SASSERT(!e_internalized(n));
 
@@ -822,7 +808,6 @@ namespace smt {
        \brief Internalize the given term into the logical context.
     */
     void context::internalize_term(app * n) {
-        SLIDPA_MSG("internalize term " << mk_pp(n, m) << " " << n->get_family_id());
         if (e_internalized(n)) {
             theory * th = m_theories.get_plugin(n->get_family_id());
             if (th != nullptr) {
@@ -906,7 +891,6 @@ namespace smt {
         It may fail because there is no plugin or the plugin does not support it.
     */
     bool context::internalize_theory_term(app * n) {
-        SLIDPA_MSG("internalize theory term " << mk_pp(n, m));
         theory * th  = m_theories.get_plugin(n->get_family_id());
         if (!th || !th->internalize_term(n))
             return false;
@@ -917,7 +901,6 @@ namespace smt {
        \brief Internalize an uninterpreted function application or constant.
     */
     void context::internalize_uninterpreted(app * n) {
-        SLIDPA_MSG("internalize upinterpreted");
         SASSERT(!e_internalized(n));
         // process args
         for (expr * arg : *n) {
