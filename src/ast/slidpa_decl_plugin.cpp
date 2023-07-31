@@ -1,3 +1,4 @@
+#include "recfun_decl_plugin.h"
 #include "slidpa_decl_plugin.h"
 
 namespace slidpa {
@@ -43,10 +44,6 @@ bool slidpa_decl_plugin::is_data(sort const * s) {
     return s == m_data_decl;
 }
 
-bool slidpa_decl_plugin::is_heap(expr const * e) {
-    return is_op_pto(e) || is_op_sep(e);
-}
-
 bool slidpa_decl_plugin::is_op_pto(expr const * e) {
     return is_app_of(e, m_family_id, OP_PTO);
 }
@@ -81,6 +78,39 @@ bool slidpa_decl_plugin::is_op_ge(expr const * e) {
 
 bool slidpa_decl_plugin::is_op_gt(expr const * e) {
     return is_app_of(e, m_family_id, OP_GT);
+}
+
+bool slidpa_decl_plugin::is_op_arith(expr const *e) {
+    return is_op_add(e) ||
+           is_op_sub(e) ||
+           is_op_cmp(e);
+}
+
+bool slidpa_decl_plugin::is_op_cmp(expr const * e) {
+    return is_op_ge(e) ||
+           is_op_gt(e) ||
+           is_op_le(e) ||
+           is_op_lt(e);
+}
+
+bool slidpa_decl_plugin::is_heap(expr const * e) {
+    return is_atomic_heap(e) ||is_disjoint_heap(e);
+}
+
+bool slidpa_decl_plugin::is_disjoint_heap(expr const * e) {
+    return is_op_sep(e);
+}
+
+bool slidpa_decl_plugin::is_atomic_heap(expr const * e) {
+    return is_op_pto(e) ||
+           is_inductive_heap(e);
+}
+
+bool slidpa_decl_plugin::is_inductive_heap(expr const * e) {
+    recfun::decl::plugin * rec_plug =
+        static_cast<recfun::decl::plugin*>
+            (m_manager->get_plugin(m_manager->get_family_id("recfun")));
+    return rec_plug->has_def(to_app(e)->get_decl());
 }
 
 decl_plugin* slidpa_decl_plugin::mk_fresh() {
@@ -120,7 +150,7 @@ void slidpa_decl_plugin::get_sort_names(svector<builtin_name> & sort_names, symb
     sort_names.push_back(builtin_name("Data", DATA_SORT));
 }
 
-func_decl* slidpa_decl_plugin::mk_points_to(unsigned arity, sort * const * domain) {
+func_decl* slidpa_decl_plugin::mk_pto(unsigned arity, sort * const * domain) {
     SLIDPA_MSG("make points-to");
     if (arity != 2) {
         m_manager->raise_exception("points-to must contain two operands");
@@ -138,7 +168,7 @@ func_decl* slidpa_decl_plugin::mk_points_to(unsigned arity, sort * const * domai
             func_decl_info(m_family_id, OP_PTO));
 }
 
-func_decl* slidpa_decl_plugin::mk_separating_conjunction(unsigned arity, sort * const * domain) {
+func_decl* slidpa_decl_plugin::mk_sep(unsigned arity, sort * const * domain) {
     SLIDPA_MSG("make separating conjunction");
     if (arity < 2) {
         m_manager->raise_exception("separating conjunction must contain at least two sub-heaps");
@@ -167,7 +197,7 @@ func_decl* slidpa_decl_plugin::mk_func(decl_kind k, unsigned arity, sort* const 
         range = m_loc_decl;
     else range = m_data_decl;
     return m_manager->mk_func_decl(s, domain[0], domain[1], range,
-        func_decl_info(m_family_id, OP_PTO));
+        func_decl_info(m_family_id, k));
 }
 
 func_decl* slidpa_decl_plugin::mk_pred(decl_kind k, unsigned arity, sort* const * domain) {
@@ -191,8 +221,8 @@ func_decl* slidpa_decl_plugin::mk_pred(decl_kind k, unsigned arity, sort* const 
         func_decl_info(m_family_id, k));
 }
 
-func_decl* slidpa_decl_plugin::mk_const_emp(unsigned arity, sort * const * domain) {
-    SLIDPA_MSG("make const emp");
+func_decl* slidpa_decl_plugin::mk_emp(unsigned arity, sort * const * domain) {
+    SLIDPA_MSG("make emp");
     if (arity != 0) {
         m_manager->raise_exception("emp is a unary operator");
         return nullptr;
@@ -202,25 +232,21 @@ func_decl* slidpa_decl_plugin::mk_const_emp(unsigned arity, sort * const * domai
 
 func_decl* slidpa_decl_plugin::mk_func_decl(decl_kind k, unsigned num_parameters, parameter const * parameters,
                                      unsigned arity, sort * const * domain, sort * range) {
-    func_decl* fd = nullptr;
     switch (k) {
-        case OP_PTO: fd = mk_points_to(arity, domain); break;
-        case OP_SEP:
-            fd = mk_separating_conjunction(arity, domain); break;
-        case OP_ADD: fd = mk_func(k, arity, domain); break;
-        case OP_SUB: fd = mk_func(k, arity, domain); break;
-        case OP_GE: fd = mk_pred(k, arity, domain); break;
-        case OP_GT: fd = mk_pred(k, arity, domain); break;
-        case OP_LE: fd = mk_pred(k, arity, domain); break;
-        case OP_LT: fd = mk_pred(k, arity, domain); break;
-        case OP_EMP: fd = mk_const_emp(arity, domain); break;
+        case OP_PTO: return mk_pto(arity, domain);
+        case OP_SEP: return mk_sep(arity, domain);
+        case OP_ADD: return mk_func(k, arity, domain);
+        case OP_SUB: return mk_func(k, arity, domain);
+        case OP_GE: return mk_pred(k, arity, domain);
+        case OP_GT: return mk_pred(k, arity, domain);
+        case OP_LE: return mk_pred(k, arity, domain);
+        case OP_LT: return mk_pred(k, arity, domain);
+        case OP_EMP: return mk_emp(arity, domain);
         case OP_ENTAIL: return m_entail_decl;
         default:
             m_manager->raise_exception("wrong operator");
             return nullptr;
     }
-    set_propertie(fd);
-    return fd;
 }
 
 void slidpa_decl_plugin::check_sorts(sort* const * domain, bool is_func) {
@@ -237,28 +263,6 @@ void slidpa_decl_plugin::check_sorts(sort* const * domain, bool is_func) {
     if (!res) {
         m_manager->raise_exception("Wrong arguments");
         return;
-    }
-}
-
-void slidpa_decl_plugin::set_propertie(func_decl* fd) {
-    switch (fd->get_decl_kind()) {
-    case OP_SEP:
-    case OP_ADD:
-    case OP_SUB:
-        fd->get_info()->set_associative();
-        fd->get_info()->set_commutative();
-        fd->get_info()->set_flat_associative();
-        break;
-    case OP_GE:
-    case OP_GT:
-    case OP_LE:
-    case OP_LT:
-        fd->get_info()->set_chainable();
-        break;
-    case OP_ENTAIL:
-        fd->get_info()->set_idempotent();
-    default:
-        break;
     }
 }
 

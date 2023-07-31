@@ -124,7 +124,6 @@ namespace {
                 next = m_context.get_random_value() % m_context.get_num_b_internalized(); 
                 TRACE("random_split", tout << "next: " << next << " get_assignment(next): " << m_context.get_assignment(next) << "\n";);
                 if (m_context.get_assignment(next) == l_undef) {
-                    SLIDPA_MSG("next is returned from random value");
                     return;
                 }
             }
@@ -132,11 +131,9 @@ namespace {
             while (!m_queue.empty()) {
                 next = m_queue.erase_min();
                 if (m_context.get_assignment(next) == l_undef) {
-                    SLIDPA_MSG("next is return from m_queue");
                     return;
                 }
             }
-            SLIDPA_MSG("next will be null");
             next = null_bool_var;
         }
 

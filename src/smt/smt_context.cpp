@@ -82,7 +82,7 @@ namespace smt {
         m_mk_enode_trail(*this),
         m_mk_lambda_trail(*this),
         m_lemma_visitor(m) {
-
+            
         SASSERT(m_scope_lvl == 0);
         SASSERT(m_base_lvl == 0);
         SASSERT(m_search_lvl == 0);
@@ -299,7 +299,6 @@ namespace smt {
     }
 
     bool context::bcp() {
-        SLIDPA_MSG("bcp");
         SASSERT(!inconsistent());
         while (m_qhead < m_assigned_literals.size()) {
             if (get_cancel_flag()) {
@@ -1697,7 +1696,6 @@ namespace smt {
        congruences cannot be retracted to a consistent state.
      */
     bool context::propagate() {
-        SLIDPA_MSG("bounded search propagate");
         TRACE("propagate", tout << "propagating... " << m_qhead << ":" << m_assigned_literals.size() << "\n";);
         while (true) {
             if (inconsistent())
@@ -1843,7 +1841,6 @@ namespace smt {
        more case splits to be performed.
     */
     bool context::decide() {
-        SLIDPA_MSG("decide");
         if (at_search_level() && !m_tmp_clauses.empty()) {
             switch (decide_clause()) {
             case l_true:  // already satisfied
@@ -1863,7 +1860,6 @@ namespace smt {
             m_case_split_queue->next_case_split(var, phase);
             used_queue = true;
             if (var == null_bool_var) {
-                SLIDPA_MSG("has split, var is null");
                 return false;
             }
 
@@ -1900,7 +1896,6 @@ namespace smt {
 
         if (!is_pos) l.neg();
         TRACE("decide", tout << "case split " << l << "\n" << "activity: " << get_activity(var) << "\n";);
-        SLIDPA_MSG("l neg");
         assign(l, b_justification::mk_axiom(), true);
         return true;
     }
