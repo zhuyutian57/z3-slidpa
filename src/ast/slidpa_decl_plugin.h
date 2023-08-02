@@ -67,9 +67,9 @@ public:
     void get_op_names(svector<builtin_name> & op_names, symbol const & logic) override;
     void get_sort_names(svector<builtin_name> & sort_names, symbol const & logic) override;
 
+    app* mk_emp();
     func_decl* mk_pto(unsigned arity, sort * const * domain);
     func_decl* mk_sep(unsigned arity, sort * const * domain);
-    func_decl* mk_emp(unsigned arity, sort * const * domain);
 
     func_decl* mk_func(decl_kind k, unsigned arity, sort* const * domain);
     func_decl* mk_pred(decl_kind k, unsigned arity, sort* const * domain);
@@ -83,14 +83,14 @@ private:
 
 };
 
-class slidpa_decl_util {
+class slidpa_util {
     ast_manager& m;
     slidpa_decl_plugin* plug;
     arith_util int_util;
 
 public:
-    slidpa_decl_util(ast_manager& m);
-    ~slidpa_decl_util() {}
+    slidpa_util(ast_manager& m);
+    ~slidpa_util() {}
 
     slidpa_decl_plugin * plugin();
     arith_util& get_arith_util();
@@ -114,6 +114,7 @@ public:
     app* mk_lt(expr* arg1, expr* arg2);
     app* mk_lt(expr* arg1, value_c arg2);
     
+    app* mk_emp();
     app* mk_pto(expr* arg1, expr* arg2);
     app* mk_sep(unsigned int num_args, expr * const * args);
 };

@@ -28,7 +28,7 @@ namespace smt {
 
         class inductive_definition_manager {
             ast_manager& o_manager;
-            ::slidpa::slidpa_decl_util util;
+            ::slidpa::slidpa_util util;
             std::map<std::string, func_decl*> name2decl;
             obj_map<func_decl, inductive_definition> inductive_definitions;
             obj_map<func_decl, expr*> def2abs;
@@ -59,63 +59,103 @@ namespace smt {
             bool check_inductive_heap(expr* n, inductive_definition& def);
         };
 
-        class slidpa_formula {
-            ast_manager& n_manager;
-            expr_ref pure;
-            expr_ref_vector spatial_atoms;
+        struct spatial_atom {
+            func_decl* fd;
+            expr* s;
+            expr* t;
+        };
+
+        class lia_formula {
+            ast_manager * n_manager;
+            ptr_vector<expr> lvars;
+            ptr_vector<expr> dvars;
+            expr* pure;
+            svector<spatial_atom> spatial_atoms;
             
         public:
-            slidpa_formula(ast_manager& m);
-            ~slidpa_formula() {}
+            lia_formula(ast_manager& m);
+            ~lia_formula() {}
 
-            void set_pure(expr* p);
-            void add_spatial_atom(expr* atom);
+            void add_loc_var(expr* v);
+            void add_data_var(expr* v);
+            void add_pure(expr* n);
+            void add_spatial_atom(spatial_atom atom);
 
-            expr_ref& get_pure();
+            expr* get_pure();
             unsigned int get_num_atoms();
-            expr* get_spatial_atom(unsigned int i);
-            expr_ref_vector& get_spatial_atoms();
+            spatial_atom& get_spatial_atom(unsigned int i);
+            svector<spatial_atom>& get_spatial_atoms();
+
+            void display(std::ostream& out);
         };
 
         // used for translating formulas to builtin qf_lia
-        class Translator {
+        class formula_translator {
             ast_manager& o_manager;
             ast_manager& n_manager;
 
+            ::slidpa::slidpa_util o_s_util;
+            arith_util o_a_util;
+            arith_util n_a_util;
+
             int loc_vars_count;
             int data_vars_count;
+            obj_map<expr, expr*> slidpa_var_to_lia_var;
 
         public:
-            Translator(ast_manager& om, ast_manager& nm);
-            ~Translator() {}
+            formula_translator(ast_manager& om, ast_manager& nm);
+            ~formula_translator() {}
 
+            bool check_slidpa_formula(expr* n);
+
+            lia_formula to_lia(expr* n);
+        
+        private:
+            expr* to_nomal_form(expr* n, lia_formula& f);
+            bool aux_check_pure(expr* n);
+            bool aux_check_heap(expr* n);
+            expr* mk_loc_var(expr* n);
+            expr* mk_data_var(expr* n);
+        };
+
+        struct problem {
+            enum Type { SAT, ENTAIL };
+            Type type;
+            lia_formula phi;
+            lia_formula psi;
+
+            problem(ast_manager& m) : phi(m), psi(m) {}
         };
 
         class auxiliary_solver {
-            cmd_context _ctx;
-            smt_params _params;
+            cmd_context n_cmd_ctx;
+            smt_params n_smt_params;
+            ast_manager& o_manager;
             ast_manager& n_manager;
-            context aux_ctx;
-            arith_util aux_arith_util;
+            context n_smt_ctx;
+            arith_util n_a_util;
+            ::slidpa::slidpa_util o_s_util;
             solver * lia_solver;
 
             // inductive definitions manager use ast manager from slidpa theory
             // the new context here only handle the formulas being checked.
             inductive_definition_manager id_manager;
+            formula_translator translator;
+
+            problem * p;
         
         public:
             auxiliary_solver(ast_manager& o_manager);
             ~auxiliary_solver() {}
-
-            arith_util const& util();
             
-            void add(expr* n);
-            void push();
-            void pop(unsigned int n);
+            lbool check();
+            void register_prolbem(expr * n);
 
-            lbool check_sat();
+            void display(std::ostream& out);
         
-            inductive_definition_manager& get_id_manager();
+        private:
+            void register_satisfiability(expr* phi);
+            void register_entailment(expr* phi, expr* psi);
         };
 
     } // namespace slidpa
@@ -124,7 +164,7 @@ namespace smt {
 
         ::slidpa::slidpa_decl_plugin* m_decl_plug;
 
-        slidpa::auxiliary_solver * aux_solver;
+        slidpa::auxiliary_solver * m_aux_solver;
 
         bool final_check();
     public:
