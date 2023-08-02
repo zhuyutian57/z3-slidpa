@@ -17,15 +17,18 @@ namespace smt {
         
         typedef std::pair<int, int> Bound;
         struct inductive_definition {
-            bool is_continuous;
+            func_decl* fd;
             expr * base_rule;
             expr * inductive_rule;
+            bool is_continuous;
+            unsigned int k;
             expr * size_var;
             obj_map<expr, Bound> var2bound;
         };
 
         class inductive_definition_manager {
             ast_manager& o_manager;
+            ::slidpa::slidpa_decl_util util;
             std::map<std::string, func_decl*> name2decl;
             obj_map<func_decl, inductive_definition> inductive_definitions;
             obj_map<func_decl, expr*> def2abs;
@@ -33,7 +36,8 @@ namespace smt {
             recfun_replace aux_rpl;
         
         public:
-            inductive_definition_manager(ast_manager& o_manager);
+            inductive_definition_manager(ast_manager& om);
+            ~inductive_definition_manager() {}
 
             void register_defs(recfun::decl::plugin* recfun_plugin);
             void register_def(func_decl* fd, expr* br, expr* ir);
@@ -45,17 +49,35 @@ namespace smt {
             void display(std::ostream& out);
         
         private:
-            void register_abs_of(inductive_definition& def);
+            expr * const x;
+            expr * const y;
+
+            void compute_abs_of(inductive_definition& def);
             bool check_base_rule(expr* n);
             bool check_inductive_rule(expr* n, inductive_definition& def);
             bool check_inductive_pure(expr* n, inductive_definition& def);
             bool check_inductive_heap(expr* n, inductive_definition& def);
-
-            inline bool merge_bound(Bound nb, Bound& b);
         };
 
-        // used for translating formulas in slidpa to
-        // formulas in qf_lia
+        class slidpa_formula {
+            ast_manager& n_manager;
+            expr_ref pure;
+            expr_ref_vector spatial_atoms;
+            
+        public:
+            slidpa_formula(ast_manager& m);
+            ~slidpa_formula() {}
+
+            void set_pure(expr* p);
+            void add_spatial_atom(expr* atom);
+
+            expr_ref& get_pure();
+            unsigned int get_num_atoms();
+            expr* get_spatial_atom(unsigned int i);
+            expr_ref_vector& get_spatial_atoms();
+        };
+
+        // used for translating formulas to builtin qf_lia
         class Translator {
             ast_manager& o_manager;
             ast_manager& n_manager;
@@ -66,7 +88,6 @@ namespace smt {
         public:
             Translator(ast_manager& om, ast_manager& nm);
             ~Translator() {}
-
 
         };
 

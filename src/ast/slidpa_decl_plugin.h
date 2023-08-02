@@ -4,6 +4,8 @@
 
 namespace slidpa {
 
+typedef unsigned int value_c;
+
 enum slidpa_sort_kind {
     LOC_SORT,
     DATA_SORT
@@ -53,6 +55,7 @@ public:
     bool is_op_arith(expr const * e);
     bool is_op_cmp(expr const * e);
 
+    bool is_emp(expr const * e);
     bool is_heap(expr const * e);
     bool is_disjoint_heap(expr const* e);
     bool is_atomic_heap(expr const * e);
@@ -78,6 +81,41 @@ public:
 private:
     void check_sorts(sort* const * domain, bool is_func);
 
+};
+
+class slidpa_decl_util {
+    ast_manager& m;
+    slidpa_decl_plugin* plug;
+    arith_util int_util;
+
+public:
+    slidpa_decl_util(ast_manager& m);
+    ~slidpa_decl_util() {}
+
+    slidpa_decl_plugin * plugin();
+    arith_util& get_arith_util();
+
+    sort* mk_loc_sort();
+    sort* mk_data_sort();
+
+    app* mk_loc(char const * name);
+    app* mk_data(char const * name);
+
+    app* mk_add(expr* arg1, expr* arg2);
+    app* mk_add(expr* arg1, value_c arg2);
+    app* mk_sub(expr* arg1, expr* arg2);
+    app* mk_sub(expr* arg1, value_c arg2);
+    app* mk_ge(expr* arg1, expr* arg2);
+    app* mk_ge(expr* arg1, value_c arg2);
+    app* mk_gt(expr* arg1, expr* arg2);
+    app* mk_gt(expr* arg1, value_c arg2);
+    app* mk_le(expr* arg1, expr* arg2);
+    app* mk_le(expr* arg1, value_c arg2);
+    app* mk_lt(expr* arg1, expr* arg2);
+    app* mk_lt(expr* arg1, value_c arg2);
+    
+    app* mk_pto(expr* arg1, expr* arg2);
+    app* mk_sep(unsigned int num_args, expr * const * args);
 };
 
 }

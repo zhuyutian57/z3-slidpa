@@ -9,12 +9,15 @@ namespace smt {
 
 namespace slidpa {
 
-inductive_definition_manager::inductive_definition_manager(ast_manager& o_manager)
-    : o_manager(o_manager),
+inductive_definition_manager::inductive_definition_manager(ast_manager& om)
+    : o_manager(om),
+      util(om),
       name2decl(),
       inductive_definitions(),
       def2abs(),
-      aux_rpl(o_manager) {}
+      aux_rpl(om),
+      x(util.mk_loc("x")),
+      y(util.mk_loc("y")) {}
 
 void inductive_definition_manager::register_defs(recfun::decl::plugin* recfun_plugin) {
     if (recfun_plugin == nullptr) {
@@ -22,13 +25,6 @@ void inductive_definition_manager::register_defs(recfun::decl::plugin* recfun_pl
         return;
     }
     SLIDPA_MSG("Handle inductive definitions");
-    ::slidpa::slidpa_decl_plugin* slidpa_plug =
-        static_cast<::slidpa::slidpa_decl_plugin*>
-            (o_manager.get_plugin(o_manager.get_family_id("slidpa")));
-    sort* loc_sort = 
-        slidpa_plug->mk_sort(::slidpa::LOC_SORT, 0, nullptr);
-    expr* x = o_manager.mk_const("x", loc_sort);
-    expr* y = o_manager.mk_const("y", loc_sort);
     
     for (auto recf : recfun_plugin->get_rec_funs()) {
         recfun::def& def = recfun_plugin->get_def(recf);
@@ -48,6 +44,7 @@ void inductive_definition_manager::register_defs(recfun::decl::plugin* recfun_pl
 
 void inductive_definition_manager::register_def(func_decl* fd, expr* br, expr* ir) {
     inductive_definition def;
+    def.fd = fd;
     def.base_rule = br;
     def.inductive_rule = ir;
     SLIDPA_MSG("check inductive definition\n" << mk_pp(br, o_manager) << "\n" << mk_pp(ir, o_manager));
@@ -57,25 +54,78 @@ void inductive_definition_manager::register_def(func_decl* fd, expr* br, expr* i
         return;
     }
     std::string name(fd->get_name().bare_str());
-    SLIDPA_MSG(name << " " << (name2decl.find(name) != name2decl.end()));
     if (name2decl.find(name) != name2decl.end()) {
         return;
     }
     name2decl[name] = fd;
     inductive_definitions.insert(fd, def);
-    SLIDPA_MSG("ok");
-    this->register_abs_of(def);
+    this->compute_abs_of(def);
 }
 
-void inductive_definition_manager::register_abs_of(inductive_definition& def) {
-    svector<std::pair<int, int>> bounds;
-    bounds.push_back(std::make_pair(0, 0));
-    expr* rule = ((quantifier*)def.inductive_rule)->get_expr();
-    expr* heap = to_app(rule)->get_arg(1);
-    ::slidpa::slidpa_decl_plugin* slidpa_plug =
-        static_cast<::slidpa::slidpa_decl_plugin*>
-            (o_manager.get_plugin(o_manager.get_family_id("slidpa")));
-    // TODO
+func_decl* inductive_definition_manager::get_func_decl(symbol name) {
+    return name2decl[std::string(name.bare_str())];
+}
+
+inductive_definition& inductive_definition_manager::get_inductive_def(symbol name) {
+    return this->get_inductive_def(name2decl[std::string(name.bare_str())]);
+}
+
+inductive_definition& inductive_definition_manager::get_inductive_def(func_decl* fd) {
+    SASSERT(fd != nullptr);
+    return inductive_definitions.find(fd);
+}
+
+void inductive_definition_manager::display(std::ostream& out) {
+    for (auto def : inductive_definitions) {
+        out << def.get_key().get_name() << '\n'
+            << "Base rule : " << mk_pp(def.get_value().base_rule, o_manager) << '\n'
+            << "Inductive rule : " << mk_pp(def.get_value().inductive_rule, o_manager) << '\n'
+            << "Abstraction : " << mk_pp(def2abs.find(def.get_value().fd), o_manager) << '\n';
+    }
+}
+
+void inductive_definition_manager::compute_abs_of(inductive_definition& def) {
+    SLIDPA_MSG("compute abstraction of " << def.fd->get_name());
+    if (def.size_var == nullptr ||
+        !def.var2bound.contains(def.size_var) ||
+        def2abs.contains(def.fd)) {
+        o_manager.raise_exception(" no size field? has fd?");
+        return;
+    }
+    app* diff = nullptr;
+    if (def.is_continuous) diff = util.mk_sub(y, x);
+    else {
+        // x' - x
+        diff = util.mk_sub(util.mk_loc("xp"), x);
+    }
+    Bound base = def.var2bound.find(def.size_var);
+    base.first += def.k;
+    if (base.second != -1) base.second += def.k;
+    svector<Bound> bounds;
+    bounds.push_back(base);
+    if (def.is_continuous && base.second != -1) {
+        while(true) {
+            Bound n_bound = std::make_pair(
+                bounds.back().first + base.first,
+                bounds.back().second + base.second);
+            if (n_bound.first <= bounds.back().second + 1) {
+                bounds.back().second = -1; break;
+            }
+            bounds.push_back(n_bound);
+        }
+    }
+    expr* abs = nullptr;
+    for (auto bound : bounds) {
+        app* res = nullptr;
+        app* glb = util.mk_ge(diff, bound.first);
+        if (bound.second != -1) {
+            app* lub = util.mk_le(diff, bound.second);
+            res = o_manager.mk_and(glb, lub);
+        } else res = glb;
+        if (abs == nullptr) abs = res;
+        else abs = o_manager.mk_or(abs, res);
+    }
+    def2abs.insert(def.fd, abs);
 }
 
 bool inductive_definition_manager::check_base_rule(expr* n) {
@@ -88,10 +138,7 @@ bool inductive_definition_manager::check_base_rule(expr* n) {
         to_app(to_app(p)->get_arg(1))->get_name() != "y")
         return false;
     expr* s = to_app(n)->get_arg(1);
-    if (!is_app_of(s,
-        o_manager.get_family_id("slidpa"),
-            ::slidpa::slidpa_op_kind::OP_EMP))
-        return false;
+    if (!util.plugin()->is_emp(s)) return false;
     return true;
 }
 
@@ -109,12 +156,10 @@ bool inductive_definition_manager::check_inductive_rule(
     if (o_manager.is_and(body) && to_app(body)->get_num_args() == 2) {
         p = to_app(body)->get_arg(0);
         h = to_app(body)->get_arg(1);
-    } else if (to_app(body)->get_name() == "sep") {
+    } else if (util.plugin()->is_op_sep(body)) {
         h = body;
     } else return false;
     if (!check_inductive_pure(p, def)) return false;
-    
-    SLIDPA_MSG("here berfor check heap");
     return check_inductive_heap(h, def);
 }
 
@@ -146,8 +191,12 @@ bool inductive_definition_manager::check_inductive_pure(
             default: return false;
         }
         Bound& b = def.var2bound.find(v);
-        if (!merge_bound(std::make_pair(lb, rb), b))
+        if (b.second != -1 && b.second < lb)
             return false;
+        b.first = std::max(b.first, lb);
+        if (b.second == -1) b.second = rb;
+        else if (rb != -1)
+            b.second = std::min(b.second, rb);
     }
     return true;
 }
@@ -155,17 +204,15 @@ bool inductive_definition_manager::check_inductive_pure(
 bool inductive_definition_manager::check_inductive_heap(
     expr* n, inductive_definition& def) {
     SLIDPA_MSG("check inductive heap\n" << mk_pp(n, o_manager));
-    ::slidpa::slidpa_decl_plugin* slidpa_plug =
-        static_cast<::slidpa::slidpa_decl_plugin*>
-            (o_manager.get_plugin(o_manager.get_family_id("slidpa")));
-    if (!slidpa_plug->is_op_sep(n)) return false;
+    if (!util.plugin()->is_op_sep(n)) return false;
     unsigned int k = 0;
     app* h = to_app(n);
     for (unsigned int i = 0; i < h->get_num_args(); i++)
-        if (!slidpa_plug->is_op_pto(h->get_arg(i))) {
+        if (!util.plugin()->is_op_pto(h->get_arg(i))) {
             k = i; break;
         }
-    
+    if (k == 0) return false;
+    def.k = k;
     // TODO if lseg is defined, change the format
     for (unsigned int i = 0; i <= k; i++) {
         app* sh = to_app(h->get_arg(i));
@@ -174,12 +221,12 @@ bool inductive_definition_manager::check_inductive_heap(
         if (i == 0) {
             v = to_app(sh->get_arg(0))->get_name();
             theta = 0;
-            if (slidpa_plug->is_data(sh->get_arg(1)->get_sort()))
+            if (util.plugin()->is_data(sh->get_arg(1)->get_sort()))
                 def.is_continuous = true;
             else def.is_continuous = false;
         } else {
             app* l = to_app(sh->get_arg(0));
-            if (!slidpa_plug->is_op_add(l)) return false;
+            if (!util.plugin()->is_op_add(l)) return false;
             if (!is_app_of(l->get_arg(1), arith_family_id, OP_NUM))
                 return false;
             v = to_app(l->get_arg(0))->get_name();
@@ -196,39 +243,44 @@ bool inductive_definition_manager::check_inductive_heap(
         return blk->get_arg(1) == ip->get_arg(0);
     } else {
         return is_var(ip->get_arg(0)) &&
-            slidpa_plug->is_loc(ip->get_arg(0)->get_sort());
+            util.plugin()->is_loc(ip->get_arg(0)->get_sort());
     }
 }
 
-inline bool inductive_definition_manager::merge_bound(Bound nb, Bound& b) {
-    b.first = std::max(b.first, nb.first);
-    if (b.second == -1) b.second = nb.second;
-    else if (nb.second != -1)
-        b.second = std::min(b.second, nb.second);
-    if (b.second != -1 && b.first > b.second)
-        return false;
-    return true;
-}
+slidpa_formula::slidpa_formula(ast_manager& m)
+    : n_manager(m), pure(m), spatial_atoms(m) {}
 
-func_decl* inductive_definition_manager::get_func_decl(symbol name) {
-    return name2decl[std::string(name.bare_str())];
-}
-
-inductive_definition& inductive_definition_manager::get_inductive_def(symbol name) {
-    return this->get_inductive_def(name2decl[std::string(name.bare_str())]);
-}
-
-inductive_definition& inductive_definition_manager::get_inductive_def(func_decl* fd) {
-    SASSERT(fd != nullptr);
-    return inductive_definitions.find(fd);
-}
-
-void inductive_definition_manager::display(std::ostream& out) {
-    for (auto def : inductive_definitions) {
-        out << def.get_key().get_name() << '\n'
-            << mk_pp(def.get_value().base_rule, o_manager) << '\n'
-            << mk_pp(def.get_value().inductive_rule, o_manager) << '\n';
+void slidpa_formula::set_pure(expr* p) {
+    if (!n_manager.contains(p)) {
+        n_manager.raise_exception(" use the right manager");
+        return;
     }
+    pure = p;
+}
+
+void slidpa_formula::add_spatial_atom(expr* atom) {
+    if (!n_manager.contains(atom)) {
+        n_manager.raise_exception(" use the right manager");
+        return;
+    }
+    spatial_atoms.push_back(atom);
+}
+
+expr_ref& slidpa_formula::get_pure() {
+    return pure;
+}
+
+unsigned int slidpa_formula::get_num_atoms() {
+    return spatial_atoms.size();
+}
+
+expr* slidpa_formula::get_spatial_atom(unsigned int i) {
+    SASSERT(i < this->get_num_atoms());
+    return spatial_atoms.get(i);
+}
+
+expr_ref_vector& slidpa_formula::get_spatial_atoms() {
+    return spatial_atoms;
 }
 
 Translator::Translator(ast_manager& om, ast_manager& nm)
