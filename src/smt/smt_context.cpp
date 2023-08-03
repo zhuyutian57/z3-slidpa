@@ -1775,7 +1775,6 @@ namespace smt {
        \brief Returns a truth value for the given variable
     */
     bool context::guess(bool_var var, lbool phase) {
-        SLIDPA_MSG("guess value of " << var);
         if (is_quantifier(m_bool_var2expr[var])) {
             // Overriding any decision on how to assign the quantifier.
             // assigning a quantifier to false is equivalent to make it irrelevant.

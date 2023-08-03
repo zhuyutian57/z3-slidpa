@@ -75,6 +75,11 @@ inductive_definition& inductive_definition_manager::get_inductive_def(func_decl*
     return inductive_definitions.find(fd);
 }
 
+expr* inductive_definition_manager::get_abs_of(func_decl* fd) {
+    SASSERT(def2abs.contains(fd));
+    return def2abs.find(fd);
+}
+
 void inductive_definition_manager::display(std::ostream& out) {
     for (auto def : inductive_definitions) {
         out << def.get_key().get_name() << '\n'
@@ -86,19 +91,15 @@ void inductive_definition_manager::display(std::ostream& out) {
 
 void inductive_definition_manager::compute_abs_of(inductive_definition& def) {
     SLIDPA_MSG("compute abstraction of " << def.fd->get_name());
-    if (def.size_var == nullptr ||
-        !def.var2bound.contains(def.size_var) ||
-        def2abs.contains(def.fd)) {
+    if (def.size_var == nullptr || def2abs.contains(def.fd)) {
         o_manager.raise_exception(" no size field? has fd?");
         return;
     }
-    app* diff = nullptr;
-    if (def.is_continuous) diff = util.mk_sub(y, x);
-    else {
-        // x' - x
-        diff = util.mk_sub(util.mk_loc("xp"), x);
-    }
-    Bound base = def.var2bound.find(def.size_var);
+    Bound base;
+    if (def.fd->get_name() != "blk")
+        base = def.var2bound.find(def.size_var);
+    else
+        base = std::make_pair(0, -1);
     base.first += def.k;
     if (base.second != -1) base.second += def.k;
     svector<Bound> bounds;
@@ -114,12 +115,13 @@ void inductive_definition_manager::compute_abs_of(inductive_definition& def) {
             bounds.push_back(n_bound);
         }
     }
+    expr* sz_var = util.mk_loc("sz");
     expr* abs = nullptr;
     for (auto bound : bounds) {
         app* res = nullptr;
-        app* glb = util.mk_ge(diff, bound.first);
+        app* glb = util.mk_ge(sz_var, bound.first);
         if (bound.second != -1) {
-            app* lub = util.mk_le(diff, bound.second);
+            app* lub = util.mk_le(sz_var, bound.second);
             res = o_manager.mk_and(glb, lub);
         } else res = glb;
         if (abs == nullptr) abs = res;
@@ -145,11 +147,6 @@ bool inductive_definition_manager::check_base_rule(expr* n) {
 bool inductive_definition_manager::check_inductive_rule(
     expr* n, inductive_definition& def) {
     if (!is_quantifier(n)) return false;
-    quantifier* qf = static_cast<quantifier*>(n);
-    for (unsigned int i = 0; i < qf->get_num_decls(); i++) {
-        var * v = o_manager.mk_var(i, qf->get_decl_sort(i));
-        def.var2bound.insert(v, std::make_pair(0, -1));
-    }
     expr* body = static_cast<quantifier*>(n)->get_expr();
     expr* p = nullptr;
     expr* h = nullptr;
@@ -184,12 +181,13 @@ bool inductive_definition_manager::check_inductive_pure(
             num = to_app(to_app(n)->get_arg(0))
                 ->get_parameter(0).get_rational().get_int32();
         } else return false;
-        if (!def.var2bound.contains(v)) return false;
         switch (to_app(n)->get_decl()->get_decl_kind()){
             case ::slidpa::slidpa_op_kind::OP_GE: lb = num; break;
             case ::slidpa::slidpa_op_kind::OP_LE: rb = num; break;
             default: return false;
         }
+        if (!def.var2bound.contains(v))
+            def.var2bound.insert(v, std::make_pair(0, -1));
         Bound& b = def.var2bound.find(v);
         if (b.second != -1 && b.second < lb)
             return false;
@@ -260,7 +258,7 @@ void lia_formula::add_pure(expr* n) {
     SASSERT(n_manager->contains(n));
     if (n_manager->is_true(pure))
         pure = n;
-    else if (n_manager->is_true(n))
+    else if (!n_manager->is_true(n))
         pure = n_manager->mk_and(pure, n);
 }
 
@@ -275,7 +273,7 @@ void lia_formula::display(std::ostream& out) {
     out << "    Spatial atoms : ";
     for (auto atom : spatial_atoms)
         out << "("<< atom.fd->get_name() << " "
-            << to_app(atom.s)->get_name() << " "
+            << to_app(atom.h)->get_name() << " "
             << to_app(atom.t)->get_name() << ") ";
     out << '\n';
 }
@@ -288,6 +286,7 @@ formula_translator::formula_translator(ast_manager& om, ast_manager& nm)
       n_a_util(nm),
       loc_vars_count(0),
       data_vars_count(0),
+      bool_vars_count(0),
       slidpa_var_to_lia_var() {}
 
 bool formula_translator::check_slidpa_formula(expr* n) {
@@ -319,20 +318,73 @@ lia_formula formula_translator::to_lia(expr* n) {
     lia_formula f(n_manager);
     if (!check_slidpa_formula(n)) return f;
     SLIDPA_MSG("slidpa to lia + transform to nomal form");
-    expr* normal_form = to_nomal_form(n, f);
+    expr* normal_form = to_normal_form(n, f);
     if (!normal_form) normal_form = n_manager.mk_true();
+    SLIDPA_MSG("to normal form " << mk_pp(normal_form, n_manager));
     // add var constraint
     expr* zero = n_a_util.mk_int(0);
     for (auto v : f.get_lvars())
         normal_form = n_manager.mk_and(n_a_util.mk_ge(v, zero), normal_form);
     for (auto v : f.get_dvars())
         normal_form = n_manager.mk_and(n_a_util.mk_ge(v, zero), normal_form);
+    SLIDPA_MSG("to normal form " << mk_pp(normal_form, n_manager));
     f.add_pure(normal_form);
+    SLIDPA_MSG("to normal form " << mk_pp(f.get_pure(), n_manager));
     SLIDPA_MSG("slidpa to lia done");
     return f;
 }
 
-expr* formula_translator::to_nomal_form(expr* n, lia_formula& f) {
+expr* formula_translator::replace_pure_to_lia(expr* n, Replace& rpl) {
+    SASSERT(is_app(n) && !o_s_util.plugin()->is_heap(n));
+    app* e = to_app(n);
+    if (e->get_num_args() == 0) {
+        if (o_a_util.is_numeral(n)) {
+            int value = e->get_parameter(0).get_rational().get_int32();
+            return n_a_util.mk_int(value);
+        }
+        SASSERT(rpl.contains(n));
+        return rpl.find(n);
+    }
+    ptr_vector<expr> n_args;
+    for (auto arg : *e)
+        n_args.push_back(replace_pure_to_lia(arg, rpl));
+    if (o_manager.is_and(n))
+        return n_manager.mk_and(n_args);
+    if (o_manager.is_or(n))
+        return n_manager.mk_or(n_args);
+    if (o_manager.is_eq(n))
+        return n_manager.mk_eq(n_args[0], n_args[1]);
+    if (o_s_util.plugin()->is_op_arith(n)) {
+        SASSERT(n_args.size() == 2);
+        switch (e->get_decl_kind()) {
+            case ::slidpa::OP_ADD: return n_a_util.mk_add(n_args[0], n_args[1]);
+            case ::slidpa::OP_SUB: return n_a_util.mk_sub(n_args[0], n_args[1]);
+            case ::slidpa::OP_GE: return n_a_util.mk_ge(n_args[0], n_args[1]);
+            case ::slidpa::OP_GT: return n_a_util.mk_gt(n_args[0], n_args[1]);
+            case ::slidpa::OP_LE: return n_a_util.mk_le(n_args[0], n_args[1]);
+            case ::slidpa::OP_LT: return n_a_util.mk_lt(n_args[0], n_args[1]);
+            default: break;
+        }
+    }
+    SASSERT(false);
+    return nullptr;
+}
+
+expr* formula_translator::mk_new_loc_var() {
+    std::string name = "l" + std::to_string(loc_vars_count++);
+    return n_manager.mk_const(name.c_str(), n_a_util.mk_int());
+}
+expr* formula_translator::mk_new_data_var() {
+    std::string name = "d" + std::to_string(data_vars_count++);
+    return n_manager.mk_const(name.c_str(), n_a_util.mk_int());
+}
+
+expr* formula_translator::mk_new_bool_var() {
+    std::string name = "isEmp_" + std::to_string(bool_vars_count++);
+    return n_manager.mk_const(name.c_str(), n_manager.mk_bool_sort());
+}
+
+expr* formula_translator::to_normal_form(expr* n, lia_formula& f) {
     SASSERT(is_app(n));
     SLIDPA_MSG("to normal form " << mk_pp(n, o_manager));
     app* e = to_app(n);
@@ -355,7 +407,7 @@ expr* formula_translator::to_nomal_form(expr* n, lia_formula& f) {
     }
     ptr_vector<expr> n_args;
     for (auto arg : *e) {
-        expr* n_arg = to_nomal_form(arg, f);
+        expr* n_arg = to_normal_form(arg, f);
         if (n_arg != nullptr) n_args.push_back(n_arg);
     }
     if (o_s_util.plugin()->is_heap(e)) {
@@ -364,24 +416,24 @@ expr* formula_translator::to_nomal_form(expr* n, lia_formula& f) {
             SLIDPA_MSG("to normal form atomic heap " << mk_pp(e, o_manager));
             SASSERT(n_args.size() == 2);
             func_decl* fd = e->get_decl();
-            app* s = to_app(n_args[0]);
+            app* h = to_app(n_args[0]);
             app* t = to_app(n_args[1]);
-            if (s->get_num_args() != 0) {
-                expr* v = mk_loc_var(nullptr);
-                f.add_pure(n_manager.mk_eq(v, s));
-                s = to_app(v);
+            if (h->get_num_args() != 0) {
+                expr* v = mk_loc_var(h);
+                f.add_pure(n_manager.mk_eq(v, h));
+                h = to_app(v);
             }
             if (t->get_num_args() != 0) {
                 expr* v;
                 if (o_s_util.plugin()->is_loc(e->get_arg(1)->get_sort())) {
-                    v = mk_loc_var(nullptr);
+                    v = mk_new_loc_var();
                 } else {
-                    v = mk_data_var(nullptr);
+                    v = mk_new_data_var();
                 }
                 f.add_pure(n_manager.mk_eq(v, t));
                 t = to_app(v);
             }
-            f.add_spatial_atom(spatial_atom { fd, s, t });
+            f.add_spatial_atom(spatial_atom { fd, h, t });
             SLIDPA_MSG("to normal form done for " << mk_pp(e, o_manager));
         }
         return nullptr;
@@ -436,19 +488,19 @@ bool formula_translator::aux_check_heap(expr* n) {
 }
 
 expr* formula_translator::mk_loc_var(expr* n) {
+    SASSERT(n);
     if (slidpa_var_to_lia_var.contains(n))
         return slidpa_var_to_lia_var.find(n);
-    std::string name = "l" + std::to_string(loc_vars_count++);
-    expr* v = n_manager.mk_const(name.c_str(), n_a_util.mk_int());
+    expr* v = mk_new_loc_var();
     slidpa_var_to_lia_var.insert(n, v);
     return v;
 }
 
 expr* formula_translator::mk_data_var(expr* n) {
+    SASSERT(n);
     if (slidpa_var_to_lia_var.contains(n))
         return slidpa_var_to_lia_var.find(n);
-    std::string name = "d" + std::to_string(data_vars_count++);
-    expr* v = n_manager.mk_const(name.c_str(), n_a_util.mk_int());
+    expr* v = mk_new_data_var();
     slidpa_var_to_lia_var.insert(n, v);
     return v;
 }
@@ -474,8 +526,10 @@ auxiliary_solver::auxiliary_solver(ast_manager& o_manager)
 }
 
 lbool auxiliary_solver::check() {
-    // TODO
-    return l_true;
+    if (p->type == problem::SAT)
+        return check_sat();
+    else
+        return check_entail();
 }
 
 void auxiliary_solver::register_prolbem(expr* n) {
@@ -504,6 +558,13 @@ void auxiliary_solver::display(std::ostream& out) {
     }
 }
 
+void auxiliary_solver::register_satisfiability(expr* phi) {
+    SLIDPA_MSG("register satisfiability");
+    p->type = problem::SAT;
+    p->phi = translator.to_lia(phi);
+    SLIDPA_MSG("register satisfiability done");
+}
+
 void auxiliary_solver::register_entailment(expr* phi, expr* psi) {
     SLIDPA_MSG("register entailment");
     p->type = problem::ENTAIL;
@@ -514,14 +575,66 @@ void auxiliary_solver::register_entailment(expr* phi, expr* psi) {
     SLIDPA_MSG("register entailment done");
 }
 
-void auxiliary_solver::register_satisfiability(expr* phi) {
-    SLIDPA_MSG("register satisfiability");
-    p->type = problem::SAT;
-    p->phi = translator.to_lia(phi);
-    SLIDPA_MSG("register satisfiability done");
+lbool auxiliary_solver::check_sat() {
+    SLIDPA_MSG("check satisfiability");
+    expr* abs = compute_abs_of(p->phi);
+    SLIDPA_MSG("Abs(phi) : " << mk_pp(abs, n_manager));
+    lia_solver->assert_expr(abs);
+    return lia_solver->check_sat();
 }
 
+lbool auxiliary_solver::check_entail() { return l_true; }
+
+expr* auxiliary_solver::compute_abs_of(lia_formula& f) {
+    SLIDPA_MSG("orig " << mk_pp(f.get_pure(), n_manager));
+    typedef std::pair<expr*, expr*> reg;
+    expr* res = f.get_pure();
+    svector<reg> regs;
+    expr* one = n_a_util.mk_int(1);
+    for (auto atom : f.get_spatial_atoms()) {
+        expr* h = atom.h;
+        expr* t = nullptr;
+        expr* abs = nullptr;
+        if (atom.fd->get_name() == "pto") {
+            t = translator.mk_new_loc_var();
+            abs = n_manager.mk_eq(t, n_a_util.mk_add(h, one));
+        } else {
+            inductive_definition& def = id_manager.get_inductive_def(atom.fd);
+            if (def.is_continuous) t = atom.t;
+            else t = translator.mk_new_loc_var();
+            expr* diff = n_a_util.mk_sub(t, h);
+            Replace rpl;
+            rpl.insert(o_s_util.mk_loc("sz"), diff);
+            expr* slidpa_abs = id_manager.get_abs_of(def.fd);
+            expr* ufld_ge1 = translator.replace_pure_to_lia(slidpa_abs, rpl);
+            expr* isEmp = translator.mk_new_bool_var();
+            expr* emp_c;
+            if (def.is_continuous)
+                emp_c = n_manager.mk_and(isEmp, n_manager.mk_eq(h, t));
+            else
+                emp_c = n_manager.mk_and(isEmp,
+                    n_manager.mk_and(n_manager.mk_eq(h, t),
+                        n_manager.mk_eq(h, atom.t)));
+            expr* not_emp_c = n_manager.mk_and(n_manager.mk_not(isEmp), ufld_ge1);
+            abs = n_manager.mk_or(emp_c, not_emp_c);
+            SLIDPA_MSG(atom.fd->get_name() << " " << mk_pp(abs, n_manager));
+        }
+        regs.push_back(std::make_pair(h, t));
+        res = n_manager.mk_and(res, abs);
+    }
+    for (unsigned int i = 0; i < regs.size(); i++)
+        for (unsigned int j = i + 1; j < regs.size(); j++) {
+            expr* disjont_c = n_manager.mk_or(
+                n_a_util.mk_le(regs[i].second, regs[j].first),
+                n_a_util.mk_le(regs[j].second, regs[i].first)
+            );
+            res = n_manager.mk_and(res, disjont_c);
+        }
+    return res;
 }
+
+
+} // namespace smtslidpa
 
 theory_slidpa::theory_slidpa(context& ctx)
     : theory(ctx, ctx.get_manager().get_family_id("slidpa")) {
@@ -590,8 +703,7 @@ bool theory_slidpa::final_check() {
     }
     m_aux_solver->register_prolbem(slidpa_formula);
     m_aux_solver->display(std::cout);
-
-    return true;
+    return m_aux_solver->check() == l_true;
 }
 
 }

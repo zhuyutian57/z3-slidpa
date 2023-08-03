@@ -45,6 +45,7 @@ namespace smt {
             func_decl* get_func_decl(symbol name);
             inductive_definition& get_inductive_def(symbol name);
             inductive_definition& get_inductive_def(func_decl* fd);
+            expr* get_abs_of(func_decl* fd);
 
             void display(std::ostream& out);
         
@@ -61,8 +62,8 @@ namespace smt {
 
         struct spatial_atom {
             func_decl* fd;
-            expr* s;
-            expr* t;
+            expr* h; // head
+            expr* t; // tail or target
         };
 
         class lia_formula {
@@ -92,6 +93,7 @@ namespace smt {
         };
 
         // used for translating formulas to builtin qf_lia
+        typedef obj_map<expr, expr*> Replace;
         class formula_translator {
             ast_manager& o_manager;
             ast_manager& n_manager;
@@ -102,6 +104,7 @@ namespace smt {
 
             int loc_vars_count;
             int data_vars_count;
+            int bool_vars_count;
             obj_map<expr, expr*> slidpa_var_to_lia_var;
 
         public:
@@ -111,9 +114,14 @@ namespace smt {
             bool check_slidpa_formula(expr* n);
 
             lia_formula to_lia(expr* n);
+            expr* replace_pure_to_lia(expr* n, Replace& rpl);
+
+            expr* mk_new_loc_var();
+            expr* mk_new_data_var();
+            expr* mk_new_bool_var();
         
         private:
-            expr* to_nomal_form(expr* n, lia_formula& f);
+            expr* to_normal_form(expr* n, lia_formula& f);
             bool aux_check_pure(expr* n);
             bool aux_check_heap(expr* n);
             expr* mk_loc_var(expr* n);
@@ -158,6 +166,10 @@ namespace smt {
         private:
             void register_satisfiability(expr* phi);
             void register_entailment(expr* phi, expr* psi);
+            
+            lbool check_sat();
+            lbool check_entail();
+            expr* compute_abs_of(lia_formula& f);
         };
 
     } // namespace slidpa
