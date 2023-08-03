@@ -36,90 +36,11 @@ void slidpa_decl_plugin::set_manager(ast_manager * m, family_id id) {
     m->inc_ref(m_emp);
 }
 
-bool slidpa_decl_plugin::is_loc(sort const * s) {
-    return s == m_loc_decl;
-}
-
-bool slidpa_decl_plugin::is_data(sort const * s) {
-    return s == m_data_decl;
-}
-
-bool slidpa_decl_plugin::is_op_pto(expr const * e) {
-    return is_app_of(e, m_family_id, OP_PTO);
-}
-
-bool slidpa_decl_plugin::is_op_sep(expr const * e) {
-    return is_app_of(e, m_family_id, OP_SEP);
-}
-
-bool slidpa_decl_plugin::is_op_entail(expr const * e) {
-    return is_app_of(e, m_family_id, OP_ENTAIL);
-}
-
-bool slidpa_decl_plugin::is_op_add(expr const * e) {
-    return is_app_of(e, m_family_id, OP_ADD);
-}
-
-bool slidpa_decl_plugin::is_op_sub(expr const * e) {
-    return is_app_of(e, m_family_id, OP_SUB);
-}
-
-bool slidpa_decl_plugin::is_op_le(expr const * e) {
-    return is_app_of(e, m_family_id, OP_LE);
-}
-
-bool slidpa_decl_plugin::is_op_lt(expr const * e) {
-    return is_app_of(e, m_family_id, OP_LT);
-}
-
-bool slidpa_decl_plugin::is_op_ge(expr const * e) {
-    return is_app_of(e, m_family_id, OP_GE);
-}
-
-bool slidpa_decl_plugin::is_op_gt(expr const * e) {
-    return is_app_of(e, m_family_id, OP_GT);
-}
-
-bool slidpa_decl_plugin::is_op_arith(expr const *e) {
-    return is_op_add(e) ||
-           is_op_sub(e) ||
-           is_op_cmp(e);
-}
-
-bool slidpa_decl_plugin::is_op_cmp(expr const * e) {
-    return is_op_ge(e) ||
-           is_op_gt(e) ||
-           is_op_le(e) ||
-           is_op_lt(e);
-}
-
-bool slidpa_decl_plugin::is_emp(expr const * e) {
-    return e == m_emp;
-}
-
-bool slidpa_decl_plugin::is_heap(expr const * e) {
-    return is_atomic_heap(e) || is_disjoint_heap(e);
-}
-
-bool slidpa_decl_plugin::is_disjoint_heap(expr const * e) {
-    return is_op_sep(e);
-}
-
-bool slidpa_decl_plugin::is_atomic_heap(expr const * e) {
-    return is_emp(e) ||
-           is_op_pto(e) ||
-           is_inductive_heap(e);
-}
-
 bool slidpa_decl_plugin::is_inductive_heap(expr const * e) {
     recfun::decl::plugin * rec_plug =
         static_cast<recfun::decl::plugin*>
             (m_manager->get_plugin(m_manager->get_family_id("recfun")));
     return rec_plug->has_def(to_app(e)->get_decl());
-}
-
-decl_plugin* slidpa_decl_plugin::mk_fresh() {
-    return alloc(slidpa_decl_plugin);
 }
 
 sort* slidpa_decl_plugin::mk_sort(decl_kind k, unsigned num_parameters, parameter const * parameters) {
@@ -226,11 +147,6 @@ func_decl* slidpa_decl_plugin::mk_pred(decl_kind k, unsigned arity, sort* const 
         func_decl_info(m_family_id, k));
 }
 
-app* slidpa_decl_plugin::mk_emp() {
-    SLIDPA_MSG("make emp");
-    return m_emp;
-}
-
 func_decl* slidpa_decl_plugin::mk_func_decl(decl_kind k, unsigned num_parameters, parameter const * parameters,
                                      unsigned arity, sort * const * domain, sort * range) {
     switch (k) {
@@ -266,103 +182,5 @@ void slidpa_decl_plugin::check_sorts(sort* const * domain, bool is_func) {
         return;
     }
 }
-
-slidpa_util::slidpa_util(ast_manager& m)
-    : m(m), plug(nullptr), int_util(m) {
-    plug =
-        static_cast<slidpa_decl_plugin*>
-            (m.get_plugin(m.get_family_id("slidpa")));
-}
-
-slidpa_decl_plugin* slidpa_util::plugin() {
-    return plug;
-}
-
-arith_util& slidpa_util::get_arith_util() {
-    return int_util;
-}
-
-sort* slidpa_util::mk_loc_sort() {
-    return plug->mk_sort(LOC_SORT, 0, nullptr);
-}
-
-sort* slidpa_util::mk_data_sort() {
-    return plug->mk_sort(DATA_SORT, 0, nullptr);
-}
-
-app* slidpa_util::mk_loc(char const * name) {
-    return m.mk_const(name, this->mk_loc_sort());
-}
-
-app* slidpa_util::mk_data(char const * name) {
-    return m.mk_const(name, this->mk_data_sort());
-}
-
-app* slidpa_util::mk_add(expr* arg1, expr* arg2) {
-    return m.mk_app(plug->get_family_id(), OP_ADD, arg1, arg2);
-}
-
-app* slidpa_util::mk_add(expr* arg1, value_c arg2) {
-    expr* _arg2 = int_util.mk_int(arg2);
-    return m.mk_app(plug->get_family_id(), OP_ADD, arg1, _arg2);
-}
-
-app* slidpa_util::mk_sub(expr* arg1, expr* arg2) {
-    return m.mk_app(plug->get_family_id(), OP_SUB, arg1, arg2);
-}
-
-app* slidpa_util::mk_sub(expr* arg1, value_c arg2) {
-    expr* _arg2 = int_util.mk_int(arg2);
-    return m.mk_app(plug->get_family_id(), OP_SUB, arg1, _arg2);
-}
-
-app* slidpa_util::mk_ge(expr* arg1, expr* arg2) {
-    return m.mk_app(plug->get_family_id(), OP_GE, arg1, arg2);
-}
-
-app* slidpa_util::mk_ge(expr* arg1, value_c arg2) {
-    expr* _arg2 = int_util.mk_int(arg2);
-    return m.mk_app(plug->get_family_id(), OP_GE, arg1, _arg2);
-}
-
-app* slidpa_util::mk_gt(expr* arg1, expr* arg2) {
-    return m.mk_app(plug->get_family_id(), OP_GT, arg1, arg2);
-}
-
-app* slidpa_util::mk_gt(expr* arg1, value_c arg2) {
-    expr* _arg2 = int_util.mk_int(arg2);
-    return m.mk_app(plug->get_family_id(), OP_GT, arg1, _arg2);
-}
-
-app* slidpa_util::mk_le(expr* arg1, expr* arg2) {
-    return m.mk_app(plug->get_family_id(), OP_LE, arg1, arg2);
-}
-
-app* slidpa_util::mk_le(expr* arg1, value_c arg2) {
-    expr* _arg2 = int_util.mk_int(arg2);
-    return m.mk_app(plug->get_family_id(), OP_LE, arg1, _arg2);
-}
-
-app* slidpa_util::mk_lt(expr* arg1, expr* arg2) {
-    return m.mk_app(plug->get_family_id(), OP_LT, arg1, arg2);
-}
-
-app* slidpa_util::mk_lt(expr* arg1, value_c arg2) {
-    expr* _arg2 = int_util.mk_int(arg2);
-    return m.mk_app(plug->get_family_id(), OP_LT, arg1, _arg2);
-}
-
-app* slidpa_util::mk_emp() {
-    return plug->mk_emp();
-}
-
-app* slidpa_util::mk_pto(expr* arg1, expr* arg2) {
-    return m.mk_app(plug->get_family_id(), OP_PTO, arg1, arg2);
-}
-
-app* slidpa_util::mk_sep(unsigned int num_args, expr * const * args) {
-    return m.mk_app(plug->get_family_id(), OP_SEP, num_args, args);
-}
-
 
 } // namespace slidpa

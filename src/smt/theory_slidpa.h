@@ -76,15 +76,17 @@ namespace smt {
             lia_formula(ast_manager& m);
             ~lia_formula() {}
 
-            void add_loc_var(expr* v);
-            void add_data_var(expr* v);
+            void add_loc_var(expr* v) { if (lvars.contains(v)) return; lvars.push_back(v); }
+            void add_data_var(expr* v) { if (dvars.contains(v)) return; dvars.push_back(v); }
             void add_pure(expr* n);
-            void add_spatial_atom(spatial_atom atom);
+            void add_spatial_atom(spatial_atom atom) { spatial_atoms.push_back(atom); }
 
-            expr* get_pure();
-            unsigned int get_num_atoms();
-            spatial_atom& get_spatial_atom(unsigned int i);
-            svector<spatial_atom>& get_spatial_atoms();
+            ptr_vector<expr>& get_lvars() { return lvars; }
+            ptr_vector<expr>& get_dvars() { return dvars; }
+            expr* get_pure() { return pure; }
+            unsigned int get_num_atoms() { return spatial_atoms.size(); }
+            spatial_atom& get_spatial_atom(unsigned int i) { SASSERT(i < this->get_num_atoms()); return spatial_atoms.get(i); }
+            svector<spatial_atom>& get_spatial_atoms() { return spatial_atoms; }
 
             void display(std::ostream& out);
         };
