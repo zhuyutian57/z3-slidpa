@@ -201,6 +201,7 @@ namespace smt {
     private:
 
         void set_conflict();
+
         lbool final_check();
     };
 
