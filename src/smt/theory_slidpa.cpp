@@ -578,7 +578,6 @@ void auxiliary_solver::register_entailment(expr* phi, expr* psi) {
 lbool auxiliary_solver::check_sat() {
     SLIDPA_MSG("check satisfiability");
     expr* abs = compute_abs_of(p->phi);
-    SLIDPA_MSG("Abs(phi) : " << mk_pp(abs, n_manager));
     lia_solver->assert_expr(abs);
     lia_solver->display(std::cout);
     return lia_solver->check_sat();
