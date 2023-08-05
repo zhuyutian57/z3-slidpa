@@ -3892,7 +3892,8 @@ namespace smt {
                 TRACE("my", tout << "before resolve conflict\n");
                 if (!resolve_conflict())
                     return l_false;
-
+                TRACE("my", tout << "after resolve conflict\n");
+                
                 SASSERT(m_scope_lvl >= m_base_lvl);
 
                 if (!inconsistent()) {

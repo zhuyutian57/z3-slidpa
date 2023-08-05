@@ -180,7 +180,6 @@ namespace smt {
 
         slidpa::auxiliary_solver * m_aux_solver;
 
-        bool final_check();
     public:
         theory_slidpa(context& ctx);
         ~theory_slidpa() {}
@@ -199,6 +198,10 @@ namespace smt {
         theory * mk_fresh(context * new_ctx) override;
 
         final_check_status final_check_eh() override;
+    private:
+
+        void set_conflict();
+        lbool final_check();
     };
 
 } // namespace smt

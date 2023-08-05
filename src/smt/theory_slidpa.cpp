@@ -580,6 +580,7 @@ lbool auxiliary_solver::check_sat() {
     expr* abs = compute_abs_of(p->phi);
     SLIDPA_MSG("Abs(phi) : " << mk_pp(abs, n_manager));
     lia_solver->assert_expr(abs);
+    lia_solver->display(std::cout);
     return lia_solver->check_sat();
 }
 
@@ -589,15 +590,17 @@ expr* auxiliary_solver::compute_abs_of(lia_formula& f) {
     SLIDPA_MSG("orig " << mk_pp(f.get_pure(), n_manager));
     typedef std::pair<expr*, expr*> reg;
     expr* res = f.get_pure();
-    svector<reg> regs;
+    svector<std::pair<bool, reg>> regs;
     expr* one = n_a_util.mk_int(1);
     for (auto atom : f.get_spatial_atoms()) {
         expr* h = atom.h;
         expr* t = nullptr;
         expr* abs = nullptr;
+        std::pair<bool, reg> rega;
         if (atom.fd->get_name() == "pto") {
             t = translator.mk_new_loc_var();
             abs = n_manager.mk_eq(t, n_a_util.mk_add(h, one));
+            rega.first = false;
         } else {
             inductive_definition& def = id_manager.get_inductive_def(atom.fd);
             if (def.is_continuous) t = atom.t;
@@ -618,16 +621,23 @@ expr* auxiliary_solver::compute_abs_of(lia_formula& f) {
             expr* not_emp_c = n_manager.mk_and(n_manager.mk_not(isEmp), ufld_ge1);
             abs = n_manager.mk_or(emp_c, not_emp_c);
             SLIDPA_MSG(atom.fd->get_name() << " " << mk_pp(abs, n_manager));
+            rega.first = true;
         }
-        regs.push_back(std::make_pair(h, t));
+        rega.second = std::make_pair(h, t);
+        regs.push_back(rega);
         res = n_manager.mk_and(res, abs);
     }
     for (unsigned int i = 0; i < regs.size(); i++)
         for (unsigned int j = i + 1; j < regs.size(); j++) {
-            expr* disjont_c = n_manager.mk_or(
-                n_a_util.mk_le(regs[i].second, regs[j].first),
-                n_a_util.mk_le(regs[j].second, regs[i].first)
-            );
+            expr* disjont_c;
+            if (!regs[i].first || !regs[j].first)
+                disjont_c = n_manager.mk_or(
+                    n_a_util.mk_le(regs[i].second.second, regs[j].second.first),
+                    n_a_util.mk_le(regs[j].second.second, regs[i].second.first)
+                );
+            else
+                disjont_c = n_manager.mk_not(
+                    n_manager.mk_eq(regs[i].second.first, regs[j].second.first));
             res = n_manager.mk_and(res, disjont_c);
         }
     return res;
@@ -686,10 +696,26 @@ theory * theory_slidpa::mk_fresh(context * new_ctx) {
 }
 
 final_check_status theory_slidpa::final_check_eh() {
-    return final_check() ? FC_DONE : FC_GIVEUP;
+    lbool r = final_check();
+    switch (r)
+    {
+    case l_true : return FC_DONE;
+    case l_false :
+        set_conflict();
+        return FC_CONTINUE;
+    default: return FC_GIVEUP;
+    }
 }
 
-bool theory_slidpa::final_check() {
+void theory_slidpa::set_conflict() {
+    ctx.set_conflict(
+        ctx.mk_justification(
+            ext_theory_conflict_justification(get_id(), ctx, 0, nullptr, 0, nullptr)
+        )
+    );
+}
+
+lbool theory_slidpa::final_check() {
     SLIDPA_MSG("final check ===> to aux solver");
 
     expr* slidpa_formula = nullptr;
@@ -703,7 +729,7 @@ bool theory_slidpa::final_check() {
     }
     m_aux_solver->register_prolbem(slidpa_formula);
     m_aux_solver->display(std::cout);
-    return m_aux_solver->check() == l_true;
+    return m_aux_solver->check();
 }
 
 }
