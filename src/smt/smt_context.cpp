@@ -3937,7 +3937,6 @@ namespace smt {
             if (!decide()) {
                 if (inconsistent()) 
                     return l_false;
-                SLIDPA_MSG("smt final check");
                 final_check_status fcs = final_check();
                 TRACE("final_check_result", tout << "fcs: " << fcs << " last_search_failure: " << m_last_search_failure << "\n";);
                 switch (fcs) {

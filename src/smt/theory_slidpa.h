@@ -70,21 +70,27 @@ namespace smt {
             ast_manager * n_manager;
             ptr_vector<expr> lvars;
             ptr_vector<expr> dvars;
+            ptr_vector<expr> bvars;
+            expr* vars_c;
             expr* pure;
             svector<spatial_atom> spatial_atoms;
-            
+
         public:
             lia_formula(ast_manager& m);
             ~lia_formula() {}
 
             void add_loc_var(expr* v) { if (lvars.contains(v)) return; lvars.push_back(v); }
             void add_data_var(expr* v) { if (dvars.contains(v)) return; dvars.push_back(v); }
+            void add_bool_var(expr* v) { if (bvars.contains(v)) return; bvars.push_back(v); }
+            void add_vars_constraints(expr* v) { vars_c = v; }
             void add_pure(expr* n);
             void add_spatial_atom(spatial_atom atom) { spatial_atoms.push_back(atom); }
 
             ptr_vector<expr>& get_lvars() { return lvars; }
             ptr_vector<expr>& get_dvars() { return dvars; }
-            expr* get_pure() { return pure; }
+            ptr_vector<expr>& get_bvars() { return bvars; }
+
+            expr* get_pure(bool with_vars_c = true);
             unsigned int get_num_atoms() { return spatial_atoms.size(); }
             spatial_atom& get_spatial_atom(unsigned int i) { SASSERT(i < this->get_num_atoms()); return spatial_atoms.get(i); }
             svector<spatial_atom>& get_spatial_atoms() { return spatial_atoms; }
@@ -104,8 +110,8 @@ namespace smt {
 
             int loc_vars_count;
             int data_vars_count;
-            int bool_vars_count;
             obj_map<expr, expr*> slidpa_var_to_lia_var;
+            obj_map<expr, expr*> loc_to_isemp;
 
         public:
             formula_translator(ast_manager& om, ast_manager& nm);
@@ -118,7 +124,7 @@ namespace smt {
 
             expr* mk_new_loc_var();
             expr* mk_new_data_var();
-            expr* mk_new_bool_var();
+            expr* mk_isemp_var(expr* n);
         
         private:
             expr* to_normal_form(expr* n, lia_formula& f);
@@ -169,7 +175,12 @@ namespace smt {
             
             lbool check_sat();
             lbool check_entail();
-            expr* compute_abs_of(lia_formula& f);
+
+            typedef triple<expr*, expr*, expr*> reg;
+            expr* mk_abs(lia_formula& f, bool is_psi);
+            expr* mk_abs_inductive(reg r, expr* t, expr* ufld_ge1, bool is_continuous);
+            expr* mk_abs_disjoint(svector<reg>& regs);
+            expr* mk_exists_psi(expr* abs);
         };
 
     } // namespace slidpa
