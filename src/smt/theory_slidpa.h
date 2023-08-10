@@ -69,7 +69,6 @@ namespace smt {
         class lia_formula {
             ast_manager * n_manager;
             ptr_vector<expr> lvars;
-            ptr_vector<expr> dvars;
             ptr_vector<expr> bvars;
             expr* vars_c;
             expr* pure;
@@ -80,14 +79,12 @@ namespace smt {
             ~lia_formula() {}
 
             void add_loc_var(expr* v) { if (lvars.contains(v)) return; lvars.push_back(v); }
-            void add_data_var(expr* v) { if (dvars.contains(v)) return; dvars.push_back(v); }
             void add_bool_var(expr* v) { if (bvars.contains(v)) return; bvars.push_back(v); }
             void add_vars_constraints(expr* v) { vars_c = v; }
             void add_pure(expr* n);
             void add_spatial_atom(spatial_atom atom) { spatial_atoms.push_back(atom); }
 
             ptr_vector<expr>& get_lvars() { return lvars; }
-            ptr_vector<expr>& get_dvars() { return dvars; }
             ptr_vector<expr>& get_bvars() { return bvars; }
 
             expr* get_pure(bool with_vars_c = true);
@@ -109,7 +106,6 @@ namespace smt {
             arith_util n_a_util;
 
             int loc_vars_count;
-            int data_vars_count;
             obj_map<expr, expr*> slidpa_var_to_lia_var;
             obj_map<expr, expr*> loc_to_isemp;
 
@@ -123,7 +119,6 @@ namespace smt {
             expr* replace_pure_to_lia(expr* n, Replace& rpl);
 
             expr* mk_new_loc_var();
-            expr* mk_new_data_var();
             expr* mk_isemp_var(expr* n);
         
         private:
@@ -131,7 +126,6 @@ namespace smt {
             bool aux_check_pure(expr* n);
             bool aux_check_heap(expr* n);
             expr* mk_loc_var(expr* n);
-            expr* mk_data_var(expr* n);
         };
 
         struct problem {

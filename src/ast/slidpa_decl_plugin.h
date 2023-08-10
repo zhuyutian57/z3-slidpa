@@ -6,10 +6,7 @@ namespace slidpa {
 
 typedef unsigned int value_c;
 
-enum slidpa_sort_kind {
-    LOC_SORT,
-    DATA_SORT
-};
+enum slidpa_sort_kind { LOC_SORT };
 
 enum slidpa_op_kind {
     OP_PTO,
@@ -41,7 +38,6 @@ public:
     slidpa_decl_plugin();
 
     bool is_loc(sort const * s) { return s == m_loc_decl; }
-    bool is_data(sort const * s) { return s == m_data_decl; }
     bool is_op_pto(expr const * e) { return is_app_of(e, m_family_id, OP_PTO); }
     bool is_op_sep(expr const * e) { return is_app_of(e, m_family_id, OP_SEP); }
     bool is_op_entail(expr const * e) { return is_app_of(e, m_family_id, OP_ENTAIL); }
@@ -75,10 +71,6 @@ public:
 
     func_decl* mk_func_decl(decl_kind k, unsigned num_parameters, parameter const * parameters,
                                         unsigned arity, sort * const * domain, sort * range) override;
-
-private:
-    void check_sorts(sort* const * domain, bool is_func);
-
 };
 
 class slidpa_util {
@@ -98,9 +90,7 @@ public:
     slidpa_decl_plugin* plugin() { return plug; }
     arith_util& get_arith_util() { return int_util; }
     sort* mk_loc_sort() { return plug->mk_sort(LOC_SORT, 0, nullptr); }
-    sort* mk_data_sort() { return plug->mk_sort(DATA_SORT, 0, nullptr); }
     app* mk_loc(char const * name) { return m.mk_const(name, this->mk_loc_sort()); }
-    app* mk_data(char const * name) { return m.mk_const(name, this->mk_data_sort()); }
     app* mk_add(expr* arg1, expr* arg2) { return m.mk_app(plug->get_family_id(), OP_ADD, arg1, arg2); }
     app* mk_add(expr* arg1, value_c arg2) { return m.mk_app(plug->get_family_id(), OP_ADD, arg1, int_util.mk_int(arg2)); }
     app* mk_sub(expr* arg1, expr* arg2) { return m.mk_app(plug->get_family_id(), OP_SUB, arg1, arg2); }

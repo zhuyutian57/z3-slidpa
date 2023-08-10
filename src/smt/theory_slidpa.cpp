@@ -219,9 +219,6 @@ bool inductive_definition_manager::check_inductive_heap(
         if (i == 0) {
             v = to_app(sh->get_arg(0))->get_name();
             theta = 0;
-            if (util.plugin()->is_data(sh->get_arg(1)->get_sort()))
-                def.is_continuous = true;
-            else def.is_continuous = false;
         } else {
             app* l = to_app(sh->get_arg(0));
             if (!util.plugin()->is_op_add(l)) return false;
@@ -237,18 +234,15 @@ bool inductive_definition_manager::check_inductive_heap(
     if (k + 1 == h->get_num_args()) return true;
     app* blk = to_app(h->get_arg(k));
     app* ip = to_app(h->get_arg(k + 1));
-    if (def.is_continuous) {
-        return blk->get_arg(1) == ip->get_arg(0);
-    } else {
-        return is_var(ip->get_arg(0)) &&
-            util.plugin()->is_loc(ip->get_arg(0)->get_sort());
-    }
+    if (blk->get_arg(1) == ip->get_arg(0))
+        def.is_continuous = true;
+    else def.is_continuous = false;
+    return true;
 }
 
 lia_formula::lia_formula(ast_manager& m)
     : n_manager(&m),
       lvars(),
-      dvars(),
       bvars(),
       pure(m.mk_true()),
       spatial_atoms() {}
@@ -270,9 +264,6 @@ void lia_formula::display(std::ostream& out) {
     out << "    Location variables : ";
     for (auto v : lvars) out << to_app(v)->get_name() << " ";
     out << "\n";
-    out << "    Data variables : ";
-    for (auto v : dvars) out << to_app(v)->get_name() << " ";
-    out << "\n";
     out << "    Pure : " << mk_pp(pure, *n_manager) << '\n';
     out << "    Spatial atoms : ";
     for (auto atom : spatial_atoms)
@@ -289,7 +280,6 @@ formula_translator::formula_translator(ast_manager& om, ast_manager& nm)
       o_a_util(om),
       n_a_util(nm),
       loc_vars_count(0),
-      data_vars_count(0),
       slidpa_var_to_lia_var() {}
 
 bool formula_translator::check_slidpa_formula(expr* n) {
@@ -326,8 +316,6 @@ lia_formula formula_translator::to_lia(expr* n) {
     expr* zero = n_a_util.mk_int(0);
     expr* vars_c = n_manager.mk_true();
     for (auto v : f.get_lvars())
-        vars_c = n_manager.mk_and(vars_c, n_a_util.mk_ge(v, zero));
-    for (auto v : f.get_dvars())
         vars_c = n_manager.mk_and(vars_c, n_a_util.mk_ge(v, zero));
     f.add_vars_constraints(vars_c);
     SLIDPA_MSG("to normal form " << mk_pp(f.get_pure(), n_manager));
@@ -375,10 +363,6 @@ expr* formula_translator::mk_new_loc_var() {
     std::string name = "l" + std::to_string(loc_vars_count++);
     return n_manager.mk_const(name.c_str(), n_a_util.mk_int());
 }
-expr* formula_translator::mk_new_data_var() {
-    std::string name = "d" + std::to_string(data_vars_count++);
-    return n_manager.mk_const(name.c_str(), n_a_util.mk_int());
-}
 
 expr* formula_translator::to_normal_form(expr* n, lia_formula& f) {
     SASSERT(is_app(n));
@@ -390,8 +374,6 @@ expr* formula_translator::to_normal_form(expr* n, lia_formula& f) {
         expr* v = nullptr;
         if (o_s_util.plugin()->is_loc(e->get_sort())) {
             v = mk_loc_var(e); f.add_loc_var(v);
-        } else if (o_s_util.plugin()->is_data(e->get_sort())) {
-            v = mk_data_var(e); f.add_data_var(v);
         } else if (o_a_util.is_numeral(e)) {
             v = n_a_util.mk_int(e->get_parameter(0).get_rational().get_int32());
         } else {
@@ -421,11 +403,8 @@ expr* formula_translator::to_normal_form(expr* n, lia_formula& f) {
             }
             if (t->get_num_args() != 0) {
                 expr* v;
-                if (o_s_util.plugin()->is_loc(e->get_arg(1)->get_sort())) {
-                    v = mk_new_loc_var();
-                } else {
-                    v = mk_new_data_var();
-                }
+                SASSERT(o_s_util.plugin()->is_loc(e->get_arg(1)->get_sort()));
+                v = mk_new_loc_var();
                 f.add_pure(n_manager.mk_eq(v, t));
                 t = to_app(v);
             }
@@ -488,15 +467,6 @@ expr* formula_translator::mk_loc_var(expr* n) {
     if (slidpa_var_to_lia_var.contains(n))
         return slidpa_var_to_lia_var.find(n);
     expr* v = mk_new_loc_var();
-    slidpa_var_to_lia_var.insert(n, v);
-    return v;
-}
-
-expr* formula_translator::mk_data_var(expr* n) {
-    SASSERT(n);
-    if (slidpa_var_to_lia_var.contains(n))
-        return slidpa_var_to_lia_var.find(n);
-    expr* v = mk_new_data_var();
     slidpa_var_to_lia_var.insert(n, v);
     return v;
 }

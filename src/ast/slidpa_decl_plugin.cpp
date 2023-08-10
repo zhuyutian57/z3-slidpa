@@ -16,10 +16,6 @@ void slidpa_decl_plugin::set_manager(ast_manager * m, family_id id) {
         sort_info(id, LOC_SORT));
     m->inc_ref(m_loc_decl);
 
-    m_data_decl = m->mk_sort(symbol("Data"),
-        sort_info(id, DATA_SORT));
-    m->inc_ref(m_data_decl);
-
     sort * b_sort = m->mk_bool_sort();
     
     m_heap_decl = b_sort;
@@ -44,14 +40,12 @@ bool slidpa_decl_plugin::is_inductive_heap(expr const * e) {
 }
 
 sort* slidpa_decl_plugin::mk_sort(decl_kind k, unsigned num_parameters, parameter const * parameters) {
-    SLIDPA_MSG("slidpa make sort -- " << (k == LOC_SORT ? "Loc" : "Data"));
+    SLIDPA_MSG("slidpa make sort -- " );
     
     switch (k)
     {
         case LOC_SORT:
             return m_loc_decl;
-        case DATA_SORT:
-            return m_data_decl;
         default:
             m_manager->raise_exception("no such sort in SLIDPA!");
             return nullptr;
@@ -73,7 +67,6 @@ void slidpa_decl_plugin::get_op_names(svector<builtin_name> & op_names, symbol c
 
 void slidpa_decl_plugin::get_sort_names(svector<builtin_name> & sort_names, symbol const & logic) {
     sort_names.push_back(builtin_name("Loc", LOC_SORT));
-    sort_names.push_back(builtin_name("Data", DATA_SORT));
 }
 
 func_decl* slidpa_decl_plugin::mk_pto(unsigned arity, sort * const * domain) {
@@ -84,10 +77,6 @@ func_decl* slidpa_decl_plugin::mk_pto(unsigned arity, sort * const * domain) {
     }
     if (!is_loc(domain[0])) {
         m_manager->raise_exception("source's sort must be loc");
-        return nullptr;
-    }
-    if (!is_loc(domain[1]) && !is_data(domain[1])) {
-        m_manager->raise_exception("target's sort must be loc or data");
         return nullptr;
     }
     return m_manager->mk_func_decl(symbol("pto"), arity, domain, m_heap_decl,
@@ -115,14 +104,8 @@ func_decl* slidpa_decl_plugin::mk_func(decl_kind k, unsigned arity, sort* const 
         m_manager->raise_exception("that is a binary function");
         return nullptr;
     }
-    this->check_sorts(domain, true);
     symbol s(k == OP_ADD ? "+" : "-");
-    sort* range;
-    if (domain[0]->get_name() == "Loc" ||
-        domain[1]->get_name() == "Loc")
-        range = m_loc_decl;
-    else range = m_data_decl;
-    return m_manager->mk_func_decl(s, domain[0], domain[1], range,
+    return m_manager->mk_func_decl(s, domain[0], domain[1], m_loc_decl,
         func_decl_info(m_family_id, k));
 }
 
@@ -132,7 +115,6 @@ func_decl* slidpa_decl_plugin::mk_pred(decl_kind k, unsigned arity, sort* const 
         m_manager->raise_exception("that is a binary predicate");
         return nullptr;
     }
-    this->check_sorts(domain, false);
     symbol s;
     switch (k) {
         case OP_LE: s = "<="; break;
@@ -163,23 +145,6 @@ func_decl* slidpa_decl_plugin::mk_func_decl(decl_kind k, unsigned num_parameters
         default:
             m_manager->raise_exception("wrong operator");
             return nullptr;
-    }
-}
-
-void slidpa_decl_plugin::check_sorts(sort* const * domain, bool is_func) {
-    bool res = true;
-    for (int i = 0; i < 2; i++) {
-        symbol name = domain[i]->get_name();
-        if (name != "Loc" && name != "Data" && name != "Int")
-            res = false;
-    }
-    if (is_func) return;
-    if ((domain[0] == m_loc_decl && domain[1] == m_data_decl) ||
-        (domain[0] == m_data_decl && domain[1] == m_loc_decl))
-        res = false;
-    if (!res) {
-        m_manager->raise_exception("Wrong arguments");
-        return;
     }
 }
 
