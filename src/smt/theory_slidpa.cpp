@@ -25,7 +25,6 @@ void inductive_definition_manager::register_defs(recfun::decl::plugin* recfun_pl
         return;
     }
     SLIDPA_MSG("Handle inductive definitions");
-    
     for (auto recf : recfun_plugin->get_rec_funs()) {
         recfun::def& def = recfun_plugin->get_def(recf);
         func_decl* fd = def.get_decl();
@@ -37,9 +36,9 @@ void inductive_definition_manager::register_defs(recfun::decl::plugin* recfun_pl
         expr_ref renamed_rule = aux_rpl(def.get_rhs());
         expr* br = to_app(renamed_rule.get())->get_arg(0);
         expr* ir = to_app(renamed_rule.get())->get_arg(1);
-        this->register_def(fd, br ,ir);
+        register_def(fd, br ,ir);
     }
-    this->display(std::cout);
+    display(std::cout);
 }
 
 void inductive_definition_manager::register_def(func_decl* fd, expr* br, expr* ir) {
@@ -59,7 +58,7 @@ void inductive_definition_manager::register_def(func_decl* fd, expr* br, expr* i
     }
     name2decl[name] = fd;
     inductive_definitions.insert(fd, def);
-    this->compute_abs_of(def);
+    compute_abs_of(def);
 }
 
 func_decl* inductive_definition_manager::get_func_decl(symbol name) {
@@ -67,7 +66,7 @@ func_decl* inductive_definition_manager::get_func_decl(symbol name) {
 }
 
 inductive_definition& inductive_definition_manager::get_inductive_def(symbol name) {
-    return this->get_inductive_def(name2decl[std::string(name.bare_str())]);
+    return get_inductive_def(name2decl[std::string(name.bare_str())]);
 }
 
 inductive_definition& inductive_definition_manager::get_inductive_def(func_decl* fd) {

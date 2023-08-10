@@ -5,7 +5,6 @@ namespace slidpa {
 
 slidpa_decl_plugin::slidpa_decl_plugin()
     : m_loc_decl(nullptr),
-      m_data_decl(nullptr),
       m_emp(nullptr) {}
 
 void slidpa_decl_plugin::set_manager(ast_manager * m, family_id id) {
@@ -41,7 +40,6 @@ bool slidpa_decl_plugin::is_inductive_heap(expr const * e) {
 
 sort* slidpa_decl_plugin::mk_sort(decl_kind k, unsigned num_parameters, parameter const * parameters) {
     SLIDPA_MSG("slidpa make sort -- " );
-    
     switch (k)
     {
         case LOC_SORT:

@@ -26,7 +26,6 @@ enum slidpa_op_kind {
 class slidpa_decl_plugin : public decl_plugin {
 
     sort* m_loc_decl;
-    sort* m_data_decl;
     sort* m_heap_decl;
 
     func_decl* m_entail_decl;
@@ -90,7 +89,7 @@ public:
     slidpa_decl_plugin* plugin() { return plug; }
     arith_util& get_arith_util() { return int_util; }
     sort* mk_loc_sort() { return plug->mk_sort(LOC_SORT, 0, nullptr); }
-    app* mk_loc(char const * name) { return m.mk_const(name, this->mk_loc_sort()); }
+    app* mk_loc(char const * name) { return m.mk_const(name, mk_loc_sort()); }
     app* mk_add(expr* arg1, expr* arg2) { return m.mk_app(plug->get_family_id(), OP_ADD, arg1, arg2); }
     app* mk_add(expr* arg1, value_c arg2) { return m.mk_app(plug->get_family_id(), OP_ADD, arg1, int_util.mk_int(arg2)); }
     app* mk_sub(expr* arg1, expr* arg2) { return m.mk_app(plug->get_family_id(), OP_SUB, arg1, arg2); }

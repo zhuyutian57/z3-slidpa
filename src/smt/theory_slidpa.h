@@ -89,7 +89,7 @@ namespace smt {
 
             expr* get_pure(bool with_vars_c = true);
             unsigned int get_num_atoms() { return spatial_atoms.size(); }
-            spatial_atom& get_spatial_atom(unsigned int i) { SASSERT(i < this->get_num_atoms()); return spatial_atoms.get(i); }
+            spatial_atom& get_spatial_atom(unsigned int i) { SASSERT(i < get_num_atoms()); return spatial_atoms.get(i); }
             svector<spatial_atom>& get_spatial_atoms() { return spatial_atoms; }
 
             void display(std::ostream& out);
