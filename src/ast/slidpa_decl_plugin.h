@@ -105,6 +105,7 @@ public:
     app* mk_emp() { return plug->mk_emp(); }
     app* mk_pto(expr* arg1, expr* arg2) { return m.mk_app(plug->get_family_id(), OP_PTO, arg1, arg2); }
     app* mk_sep(unsigned int num_args, expr * const * args) { return m.mk_app(plug->get_family_id(), OP_SEP, num_args, args); }
+    app* mk_inductive_atom(func_decl* fd, expr* arg1, expr* arg2) { return m.mk_app(fd, arg1, arg2); }
 };
 
 }

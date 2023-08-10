@@ -44,18 +44,14 @@ void inductive_definition_manager::register_defs(recfun::decl::plugin* recfun_pl
 void inductive_definition_manager::register_def(func_decl* fd, expr* br, expr* ir) {
     inductive_definition def;
     def.fd = fd;
-    def.base_rule = br;
-    def.inductive_rule = ir;
     SLIDPA_MSG("check inductive definition\n" << mk_pp(br, o_manager) << "\n" << mk_pp(ir, o_manager));
-    if (!check_base_rule(br) ||
-        !check_inductive_rule(ir, def)) {
+    if (!check_base_rule(br) || !check_inductive_rule(ir)) {
         o_manager.raise_exception(" wrong definition ");
         return;
     }
+    to_normal_form(br, ir, def);
     std::string name(fd->get_name().bare_str());
-    if (name2decl.find(name) != name2decl.end()) {
-        return;
-    }
+    if (name2decl.find(name) != name2decl.end()) return;
     name2decl[name] = fd;
     inductive_definitions.insert(fd, def);
     compute_abs_of(def);
@@ -143,63 +139,43 @@ bool inductive_definition_manager::check_base_rule(expr* n) {
     return true;
 }
 
-bool inductive_definition_manager::check_inductive_rule(
-    expr* n, inductive_definition& def) {
+bool inductive_definition_manager::check_inductive_rule(expr* n) {
+    SLIDPA_MSG("check inductive rule\n" << mk_pp(n, o_manager));
     if (!is_quantifier(n)) return false;
     expr* body = static_cast<quantifier*>(n)->get_expr();
-    expr* p = nullptr;
-    expr* h = nullptr;
+    expr* p = o_manager.mk_true();
+    expr* h;
     if (o_manager.is_and(body) && to_app(body)->get_num_args() == 2) {
         p = to_app(body)->get_arg(0);
         h = to_app(body)->get_arg(1);
     } else if (util.plugin()->is_op_sep(body)) {
         h = body;
     } else return false;
-    if (!check_inductive_pure(p, def)) return false;
-    return check_inductive_heap(h, def);
+    if (!check_inductive_pure(p)) return false;
+    return check_inductive_heap(h);
 }
 
-bool inductive_definition_manager::check_inductive_pure(
-    expr* n, inductive_definition& def) {
-    SLIDPA_MSG("check inductive pure\n" << mk_pp(n, o_manager));
-    if (!n) return true;
+bool inductive_definition_manager::check_inductive_pure(expr* n) {
+    if (o_manager.is_true(n)) return true;
     if (o_manager.is_or(n)) return false;
     if (o_manager.is_and(n)) {
         for (auto arg : *to_app(n))
-            if (!check_inductive_pure(arg, def))
+            if (!check_inductive_pure(arg))
                 return false;
     } else {
-        expr* v;
-        int num, lb = 0, rb = -1;
         if (is_app_of(to_app(n)->get_arg(1), arith_family_id, OP_NUM)) {
-            v = to_app(n)->get_arg(0);
-            num = to_app(to_app(n)->get_arg(1))
-                ->get_parameter(0).get_rational().get_int32();
+            if (!is_var(to_app(n)->get_arg(0)))
+                return false;
         } else if (is_app_of(to_app(n)->get_arg(0), arith_family_id, OP_NUM)) {
-            v = to_app(n)->get_arg(1);
-            num = to_app(to_app(n)->get_arg(0))
-                ->get_parameter(0).get_rational().get_int32();
+            if (!is_var(to_app(n)->get_arg(0)))
+                return false;
         } else return false;
-        switch (to_app(n)->get_decl()->get_decl_kind()){
-            case ::slidpa::slidpa_op_kind::OP_GE: lb = num; break;
-            case ::slidpa::slidpa_op_kind::OP_LE: rb = num; break;
-            default: return false;
-        }
-        if (!def.var2bound.contains(v))
-            def.var2bound.insert(v, std::make_pair(0, -1));
-        Bound& b = def.var2bound.find(v);
-        if (b.second != -1 && b.second < lb)
-            return false;
-        b.first = std::max(b.first, lb);
-        if (b.second == -1) b.second = rb;
-        else if (rb != -1)
-            b.second = std::min(b.second, rb);
+
     }
     return true;
 }
 
-bool inductive_definition_manager::check_inductive_heap(
-    expr* n, inductive_definition& def) {
+bool inductive_definition_manager::check_inductive_heap(expr* n) {
     SLIDPA_MSG("check inductive heap\n" << mk_pp(n, o_manager));
     if (!util.plugin()->is_op_sep(n)) return false;
     unsigned int k = 0;
@@ -209,7 +185,6 @@ bool inductive_definition_manager::check_inductive_heap(
             k = i; break;
         }
     if (k == 0) return false;
-    def.k = k;
     // TODO if lseg is defined, change the format
     for (unsigned int i = 0; i <= k; i++) {
         app* sh = to_app(h->get_arg(i));
@@ -228,15 +203,125 @@ bool inductive_definition_manager::check_inductive_heap(
                 ->get_parameter(0).get_rational().get_int32();
         }
         if (v != "x" || theta != i) return false;
-        if (i == k - 1) def.size_var = sh->get_arg(1);
+        if (i == k && sh->get_name() != "blk") return false;
+    }
+    for (unsigned int i = 0; i < k; i++) {
+        app* sh = to_app(h->get_arg(i));
+        if (!is_var(sh->get_arg(1))) return false;
+        for (unsigned int j = i + 1; j < k; j++)
+            if (sh->get_arg(1) == to_app(h->get_arg(j))->get_arg(1))
+                return false;
     }
     if (k + 1 == h->get_num_args()) return true;
     app* blk = to_app(h->get_arg(k));
     app* ip = to_app(h->get_arg(k + 1));
-    if (blk->get_arg(1) == ip->get_arg(0))
-        def.is_continuous = true;
-    else def.is_continuous = false;
-    return true;
+    return blk->get_arg(1) == ip->get_arg(0) ||
+           ip->get_arg(0) == to_app(h->get_arg(0))->get_arg(1);
+}
+
+
+void inductive_definition_manager::to_normal_form(expr* br, expr* ir, inductive_definition& def) {
+    def.base_rule = br;
+    quantifier* q_ir = static_cast<quantifier*>(ir);
+    expr* body = q_ir->get_expr();
+    app* p;
+    app* h;
+    if (util.plugin()->is_op_sep(body)) {
+        p = o_manager.mk_true();
+        h = to_app(body);
+    } else {
+        p = to_app(to_app(body)->get_arg(0));
+        h = to_app(to_app(body)->get_arg(1));
+    }
+    for (unsigned int i = 0; i < h->get_num_args(); i++)
+        if (!util.plugin()->is_op_pto(h->get_arg(i))) {
+            def.k = i; break;
+        }
+    SASSERT(def.k > 0);
+    unsigned int n = def.k;
+    sort** decl_sorts = new sort* [n];
+    symbol* decl_names = new symbol [n];
+    Replace rpl;
+    for (unsigned int i = 0; i < n; i++) {
+        app* sh = to_app(to_app(h)->get_arg(i));
+        SASSERT(util.plugin()->is_op_pto(sh));
+        app* v = util.mk_loc(("z" + std::to_string(i + 1)).c_str());
+        rpl.insert(sh->get_arg(1), v);
+        decl_sorts[i] = v->get_sort();
+        decl_names[i] = v->get_name();
+        if (i == n - 1) def.size_var = v;
+        def.var2bound.insert(v, std::make_pair(0, -1));
+    }
+    expr* replaced_pure = aux_replace(p, rpl);
+    expr* replaced_heap = aux_replace(h, rpl);
+    def.inductive_rule = o_manager.mk_exists(
+        n, decl_sorts, decl_names,
+        o_manager.mk_and(replaced_pure, replaced_heap)
+    );
+    compute_bounds(replaced_pure, def.var2bound);
+}
+
+expr* inductive_definition_manager::aux_replace(expr* n, Replace& rpl) {
+    if (rpl.contains(n)) return rpl.find(n);
+    SASSERT(!is_var(n));
+    app* e = to_app(n);
+    if (e->get_num_args() == 0) return e;
+    ptr_vector<expr> n_args;
+    for (auto arg : *e)
+        n_args.push_back(aux_replace(arg, rpl));
+    if (o_manager.is_and(n))
+        return o_manager.mk_and(n_args);
+    if (o_manager.is_or(n))
+        return o_manager.mk_or(n_args);
+    if (o_manager.is_eq(n))
+        return o_manager.mk_eq(n_args[0], n_args[1]);
+    if (util.plugin()->is_inductive_heap(e))
+        return util.mk_inductive_atom(e->get_decl(), n_args[0], n_args[1]);
+    switch (e->get_decl_kind()) {
+        case ::slidpa::OP_ADD: return util.mk_add(n_args[0], n_args[1]);
+        case ::slidpa::OP_SUB: return util.mk_sub(n_args[0], n_args[1]);
+        case ::slidpa::OP_GE: return util.mk_ge(n_args[0], n_args[1]);
+        case ::slidpa::OP_GT: return util.mk_gt(n_args[0], n_args[1]);
+        case ::slidpa::OP_LE: return util.mk_le(n_args[0], n_args[1]);
+        case ::slidpa::OP_LT: return util.mk_lt(n_args[0], n_args[1]);
+        case ::slidpa::OP_EMP: return util.mk_emp();
+        case ::slidpa::OP_PTO: return util.mk_pto(n_args[0], n_args[1]);
+        case ::slidpa::OP_SEP: return util.mk_sep(n_args.size(), n_args.data());
+        default: break;
+    }
+    SASSERT(false);
+    return nullptr;
+}
+
+void inductive_definition_manager::compute_bounds(expr* p, obj_map<expr, Bound>& var2bound) {
+    if (o_manager.is_true(p)) return;
+    app* e = to_app(p);
+    if (o_manager.is_and(e)) {
+        for (auto arg : *e)
+            compute_bounds(arg, var2bound);
+        return;
+    }
+    unsigned int vid, nid;
+    if (is_app_of(e->get_arg(1), arith_family_id, OP_NUM)) {
+        vid = 0; nid = 1;
+    } else {
+        vid = 1; nid = 0;
+    }
+    expr* v = e->get_arg(vid);
+    int num = to_app(e->get_arg(nid))
+                ->get_parameter(0).get_rational().get_int32();
+    int lb = 0, rb = -1;
+    switch (e->get_decl()->get_decl_kind()){
+        case ::slidpa::slidpa_op_kind::OP_GE: lb = num; break;
+        case ::slidpa::slidpa_op_kind::OP_LE: rb = num; break;
+        default: SASSERT(false);
+    }
+    SASSERT (var2bound.contains(v));
+    Bound& b = var2bound.find(v);
+    if (b.second != -1 && b.second < lb) return;
+    b.first = std::max(b.first, lb);
+    if (b.second == -1) b.second = rb;
+    else if (rb != -1) b.second = std::min(b.second, rb);
 }
 
 lia_formula::lia_formula(ast_manager& m)
@@ -322,7 +407,7 @@ lia_formula formula_translator::to_lia(expr* n) {
     return f;
 }
 
-expr* formula_translator::replace_pure_to_lia(expr* n, Replace& rpl) {
+expr* formula_translator::to_lia(expr* n, Replace& rpl) {
     SASSERT(is_app(n) && !o_s_util.plugin()->is_heap(n));
     app* e = to_app(n);
     if (e->get_num_args() == 0) {
@@ -335,7 +420,7 @@ expr* formula_translator::replace_pure_to_lia(expr* n, Replace& rpl) {
     }
     ptr_vector<expr> n_args;
     for (auto arg : *e)
-        n_args.push_back(replace_pure_to_lia(arg, rpl));
+        n_args.push_back(to_lia(arg, rpl));
     if (o_manager.is_and(n))
         return n_manager.mk_and(n_args);
     if (o_manager.is_or(n))
@@ -590,6 +675,19 @@ lbool auxiliary_solver::check_entail() {
     return l_true;
 }
 
+lbool auxiliary_solver::aux_check_sat(expr* n) {
+    lbool res;
+    lia_solver->push();
+    lia_solver->assert_expr(n);
+    res = lia_solver->check_sat();
+    lia_solver->pop(1);
+    return res;
+}
+
+lbool auxiliary_solver::aux_check_entail(expr* n) {
+    return aux_check_sat(n_manager.mk_not(n));
+}
+
 expr* auxiliary_solver::mk_abs(lia_formula& f, bool is_psi) {
     SLIDPA_MSG("orig " << mk_pp(f.get_pure(), n_manager));
     expr* res = f.get_pure(!is_psi);
@@ -612,7 +710,7 @@ expr* auxiliary_solver::mk_abs(lia_formula& f, bool is_psi) {
             Replace rpl;
             rpl.insert(o_s_util.mk_loc("sz"), n_a_util.mk_sub(t, h));
             expr* slidpa_abs = id_manager.get_abs_of(def.fd);
-            expr* ufld_ge1 = translator.replace_pure_to_lia(slidpa_abs, rpl);
+            expr* ufld_ge1 = translator.to_lia(slidpa_abs, rpl);
             abs = mk_abs_inductive(triple(isEmp, h, t), atom.t, ufld_ge1, def.is_continuous);
             SLIDPA_MSG(atom.fd->get_name() << " " << mk_pp(abs, n_manager));
         }

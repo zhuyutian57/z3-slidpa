@@ -16,13 +16,15 @@ namespace smt {
     namespace slidpa {
         
         typedef std::pair<int, int> Bound;
+        typedef obj_map<expr, expr*> Replace;
+
         struct inductive_definition {
             func_decl* fd;
-            expr * base_rule;
-            expr * inductive_rule;
+            expr* base_rule;
+            expr* inductive_rule;
             bool is_continuous;
             unsigned int k;
-            expr * size_var;
+            expr* size_var;
             obj_map<expr, Bound> var2bound;
         };
 
@@ -55,9 +57,12 @@ namespace smt {
 
             void compute_abs_of(inductive_definition& def);
             bool check_base_rule(expr* n);
-            bool check_inductive_rule(expr* n, inductive_definition& def);
-            bool check_inductive_pure(expr* n, inductive_definition& def);
-            bool check_inductive_heap(expr* n, inductive_definition& def);
+            bool check_inductive_rule(expr* n);
+            bool check_inductive_pure(expr* n);
+            bool check_inductive_heap(expr* n);
+            void to_normal_form(expr* br, expr* ir, inductive_definition& def);
+            expr* aux_replace(expr* n, Replace& rpl);
+            void compute_bounds(expr* p, obj_map<expr, Bound>& var2bound);
         };
 
         struct spatial_atom {
@@ -96,7 +101,6 @@ namespace smt {
         };
 
         // used for translating formulas to builtin qf_lia
-        typedef obj_map<expr, expr*> Replace;
         class formula_translator {
             ast_manager& o_manager;
             ast_manager& n_manager;
@@ -116,7 +120,7 @@ namespace smt {
             bool check_slidpa_formula(expr* n);
 
             lia_formula to_lia(expr* n);
-            expr* replace_pure_to_lia(expr* n, Replace& rpl);
+            expr* to_lia(expr* n, Replace& rpl);
 
             expr* mk_new_loc_var();
             expr* mk_isemp_var(expr* n);
@@ -169,6 +173,9 @@ namespace smt {
             
             lbool check_sat();
             lbool check_entail();
+
+            lbool aux_check_sat(expr* n);
+            lbool aux_check_entail(expr* n);
 
             typedef triple<expr*, expr*, expr*> reg;
             expr* mk_abs(lia_formula& f, bool is_psi);
