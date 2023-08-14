@@ -69,6 +69,10 @@ namespace smt {
             func_decl* fd;
             expr* h; // head
             expr* t; // tail or target
+
+            bool operator==(spatial_atom const& rhs) const {
+                return fd == rhs.fd && h == rhs.h && t == rhs.t;
+            }
         };
 
         class lia_formula {
@@ -96,6 +100,7 @@ namespace smt {
             unsigned int get_num_atoms() { return spatial_atoms.size(); }
             spatial_atom& get_spatial_atom(unsigned int i) { SASSERT(i < get_num_atoms()); return spatial_atoms.get(i); }
             svector<spatial_atom>& get_spatial_atoms() { return spatial_atoms; }
+            void remove(spatial_atom& atom) { spatial_atoms.erase(atom); }
 
             void display(std::ostream& out);
         };
@@ -110,6 +115,7 @@ namespace smt {
             arith_util n_a_util;
 
             int loc_vars_count;
+            int bool_vars_count;
             obj_map<expr, expr*> slidpa_var_to_lia_var;
             obj_map<expr, expr*> loc_to_isemp;
 
@@ -124,12 +130,23 @@ namespace smt {
 
             expr* mk_new_loc_var();
             expr* mk_isemp_var(expr* n);
+            expr* mk_bool_var();
         
         private:
             expr* to_normal_form(expr* n, lia_formula& f);
             bool aux_check_pure(expr* n);
             bool aux_check_heap(expr* n);
             expr* mk_loc_var(expr* n);
+        };
+
+        class equivalence_class_manager {
+            obj_map<expr, expr*> eq;
+        public:
+            equivalence_class_manager() : eq() {}
+            ~equivalence_class_manager() {}
+
+            expr* find(expr* n);
+            expr* merge(expr* n1, expr* n2);
         };
 
         struct problem {
@@ -181,7 +198,10 @@ namespace smt {
             expr* mk_abs(lia_formula& f, bool is_psi);
             expr* mk_abs_inductive(reg r, expr* t, expr* ufld_ge1, bool is_continuous);
             expr* mk_abs_disjoint(svector<reg>& regs);
-            expr* mk_exists_psi(expr* abs);
+            expr* mk_abs_exists(expr* abs);
+
+            void eliminate_emp();
+            void reset_locs(lia_formula& f, equivalence_class_manager& eq_manager);
         };
 
     } // namespace slidpa
