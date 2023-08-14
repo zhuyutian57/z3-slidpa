@@ -102,13 +102,11 @@ expr_ref unused_vars_eliminator::operator()(quantifier* q) {
     for (unsigned i = 0; i < num_no_patterns; i++)
         m_used.process(q->get_no_pattern(i));
 
-
     if (m_used.uses_all_vars(num_decls)) {
         q->set_no_unused_vars();
         result = q;
         return result;
     }
-    
     ptr_buffer<sort>  used_decl_sorts;
     buffer<symbol>    used_decl_names;
     for (unsigned i = 0; i < num_decls; ++i) {
